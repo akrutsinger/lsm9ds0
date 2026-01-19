@@ -1,0 +1,18 @@
+[package]
+name = "lsm9ds0"
+version = "0.1.0"
+description = "Platform-agnostic async driver for the LSM9DS0 IMU"
+readme = "README.md"
+homepage = "https://github.com/akrutsinger/lsm9ds0"
+repository = "https://github.com/akrutsinger/lsm9ds0/tree/main/lsm9ds0"
+documentation = "https://docs.rs/lsm9ds0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+embedded-hal-async = { workspace = true }
+bitfield-struct = { workspace = true }
+
+[dev-dependencies]
+embedded-hal-mock = { version = "0.11", default-features = false, features = ["eh1", "embedded-hal-async"] }
+tokio = { version = "1", features = ["rt", "macros"] }

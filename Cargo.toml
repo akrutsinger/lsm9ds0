@@ -1,0 +1,37 @@
+[workspace]
+members = [
+    "lsm9ds0",
+    "examples/rp2040",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+# Driver dependencies
+embedded-hal = { version = "1.0", default-features = false }
+embedded-hal-async = { version = "1.0", default-features = false }
+embedded-hal-bus = { version = "0.3", default-features = false }
+bitfield-struct = { version = "0.12", default-features = false }
+
+# Example-only dependencies (RP2040-specific)
+embassy-embedded-hal = { version = "0.5", default-features = false }
+embassy-executor = { version = "0.9", default-features = false }
+embassy-rp = { version = "0.9", default-features = false }
+embassy-sync = { version = "0.7", default-features = false }
+embassy-time = { version = "0.5", default-features = false }
+static_cell = { version = "2.1", default-features = false }
+portable-atomic = { version = "1.13", default-features = false }
+
+defmt = { version = "1.0" }
+defmt-rtt = { version = "1.1" }
+cortex-m-rt = { version = "0.7" }
+panic-probe = { version = "1.0" }
+
+[profile.release-lto]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+opt-level = "z"

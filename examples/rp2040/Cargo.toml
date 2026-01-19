@@ -1,0 +1,52 @@
+[package]
+name = "rp2040"
+version = "0.1.0"
+description = "LSM9DS0 examples for rp-pico."
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "channels"
+path = "src/bin/channels.rs"
+
+[[bin]]
+name = "i2c_blocking_reg_dump"
+path = "src/bin/i2c_blocking_reg_dump.rs"
+
+[[bin]]
+name = "simple-i2c"
+path = "src/bin/simple-i2c.rs"
+
+[[bin]]
+name = "simple-spi"
+path = "src/bin/simple-spi.rs"
+
+[[bin]]
+name = "kalman"
+path = "src/bin/kalman.rs"
+
+[dependencies]
+# Embassy dependencies
+embassy-embedded-hal = { workspace = true, features = ["defmt"] }
+embassy-executor = { workspace = true, features = ["arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-rp = { workspace = true, features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040", "rt"] }
+embassy-sync = { workspace = true, features = ["defmt"] }
+embassy-time = { workspace = true, features = ["defmt", "defmt-timestamp-uptime"] }
+
+# LSM9DS0 driver
+lsm9ds0 = { path = "../../lsm9ds0" }
+
+# Other dependencies
+defmt = { workspace = true }
+defmt-rtt = { workspace = true }
+embedded-hal-async = { workspace = true }
+embedded-hal-bus = { workspace = true }
+embedded-hal = { workspace = true }
+static_cell = { workspace = true }
+portable-atomic = { workspace = true, features = ["critical-section"] }
+
+
+cortex-m-rt = { workspace = true }
+panic-probe = { workspace = true, features = ["print-defmt"] }
+cortex-m = "0.7"

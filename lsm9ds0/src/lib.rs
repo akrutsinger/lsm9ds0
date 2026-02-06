@@ -591,9 +591,9 @@ where
         self.interface
             .read_gyro(GyroRegisters::OUT_X_L_G.addr(), &mut bytes)
             .await?;
-        let x: i16 = (bytes[1] as i16) << 8 | bytes[0] as i16;
-        let y: i16 = (bytes[3] as i16) << 8 | bytes[2] as i16;
-        let z: i16 = (bytes[5] as i16) << 8 | bytes[4] as i16;
+        let x = i16::from_le_bytes([bytes[0], bytes[1]]);
+        let y = i16::from_le_bytes([bytes[2], bytes[3]]);
+        let z = i16::from_le_bytes([bytes[4], bytes[5]]);
         Ok((x, y, z))
     }
 
@@ -659,9 +659,9 @@ where
         self.interface
             .read_xm(AccelMagRegisters::OUT_X_L_A.addr(), &mut bytes)
             .await?;
-        let x: i16 = (bytes[1] as i16) << 8 | bytes[0] as i16;
-        let y: i16 = (bytes[3] as i16) << 8 | bytes[2] as i16;
-        let z: i16 = (bytes[5] as i16) << 8 | bytes[4] as i16;
+        let x = i16::from_le_bytes([bytes[0], bytes[1]]);
+        let y = i16::from_le_bytes([bytes[2], bytes[3]]);
+        let z = i16::from_le_bytes([bytes[4], bytes[5]]);
         Ok((x, y, z))
     }
 
@@ -697,9 +697,9 @@ where
         self.interface
             .read_xm(AccelMagRegisters::OUT_X_L_M.addr(), &mut bytes)
             .await?;
-        let x: i16 = (bytes[1] as i16) << 8 | bytes[0] as i16;
-        let y: i16 = (bytes[3] as i16) << 8 | bytes[2] as i16;
-        let z: i16 = (bytes[5] as i16) << 8 | bytes[4] as i16;
+        let x = i16::from_le_bytes([bytes[0], bytes[1]]);
+        let y = i16::from_le_bytes([bytes[2], bytes[3]]);
+        let z = i16::from_le_bytes([bytes[4], bytes[5]]);
         Ok((x, y, z))
     }
 
@@ -740,7 +740,9 @@ where
         self.interface
             .read_xm(AccelMagRegisters::OUT_TEMP_L_XM.addr(), &mut bytes)
             .await?;
-        let result: i16 = (bytes[1] as i16) << 8 | bytes[0] as i16;
+        let raw = i16::from_le_bytes([bytes[0], bytes[1]]);
+        // Shift extends the two's compliment sign bit of the 12-bit temp value
+        let result: i16 = (raw << 4) >> 4;
         Ok(types::Celsius::new(
             (result as f32) / TEMP_SCALE + self.config.temp_offset,
         ))

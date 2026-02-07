@@ -241,6 +241,11 @@ use embedded_hal_async::delay::DelayNs;
 /// - Accelerometer: milli-g (mg)
 /// - Magnetometer: milli-gauss (mgauss)
 /// - Temperature: degrees Celsius (°C)
+///
+/// # Thread Safety
+///
+/// `Lsm9ds0` is [`Send`] when the underlying interface is `Send`, which makes it safe to move
+/// between Embassy tasks or other async executors.
 pub struct Lsm9ds0<I>
 where
     I: Interface,
@@ -1838,6 +1843,347 @@ mod tests {
         assert_eq!(y, -2000i16);
         assert_eq!(z, -3000i16);
 
+        driver.release().release().done();
+    }
+
+    // =========================================================================
+    // SEND ASSERTION
+    // =========================================================================
+
+    #[test]
+    fn assert_send() {
+        fn is_send<T: Send>() {}
+        is_send::<Lsm9ds0<I2cInterface<I2cMock>>>();
+    }
+
+    // =========================================================================
+    // INIT SEQUENCE TEST
+    // =========================================================================
+
+    /// Build the I2C transaction expectations for a full `init()` with default config.
+    fn default_init_expectations() -> std::vec::Vec<I2cTransaction> {
+        let config = Lsm9ds0Config::default();
+
+        vec![
+            // verify_device_ids: read WHO_AM_I_G (single byte, no auto-increment)
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::WHO_AM_I_G.addr()],
+                vec![registers::device_constants::gyro::DEVICE_ID],
+            ),
+            // verify_device_ids: read WHO_AM_I_XM (single byte, no auto-increment)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::WHO_AM_I_XM.addr()],
+                vec![registers::device_constants::xm::DEVICE_ID],
+            ),
+            // apply_configs: CTRL_REG1_G through CTRL_REG5_G (0x20-0x24, 5 bytes, auto-increment)
+            I2cTransaction::write(
+                GYRO_ADDR,
+                vec![
+                    GyroRegisters::CTRL_REG1_G.addr() | 0x80,
+                    config.ctrl_reg1_g.into(),
+                    config.ctrl_reg2_g.into(),
+                    config.ctrl_reg3_g.into(),
+                    config.ctrl_reg4_g.into(),
+                    config.ctrl_reg5_g.into(),
+                ],
+            ),
+            // FIFO_CTRL_REG_G (single byte)
+            I2cTransaction::write(
+                GYRO_ADDR,
+                vec![
+                    GyroRegisters::FIFO_CTRL_REG_G.addr(),
+                    config.fifo_ctrl_reg_g.into(),
+                ],
+            ),
+            // INT1_CFG_G (single byte)
+            I2cTransaction::write(
+                GYRO_ADDR,
+                vec![GyroRegisters::INT1_CFG_G.addr(), config.int1_cfg_g.into()],
+            ),
+            // INT1_THS_XH_G through INT1_DURATION_G (0x32-0x38, 7 bytes, auto-increment)
+            I2cTransaction::write(
+                GYRO_ADDR,
+                vec![
+                    GyroRegisters::INT1_THS_XH_G.addr() | 0x80,
+                    0x00,
+                    0x00, // gyro_int_ths_x
+                    0x00,
+                    0x00, // gyro_int_ths_y
+                    0x00,
+                    0x00, // gyro_int_ths_z
+                    config.int1_duration_g.into(),
+                ],
+            ),
+            // INT_CTRL_REG_M (single byte)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![
+                    AccelMagRegisters::INT_CTRL_REG_M.addr(),
+                    config.int_ctrl_reg_m.into(),
+                ],
+            ),
+            // INT_THS_L_M, INT_THS_H_M (2 bytes, auto-increment)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_THS_L_M.addr() | 0x80, 0x00, 0x00],
+            ),
+            // OFFSET_X_L_M through OFFSET_Z_H_M (6 bytes, auto-increment)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![
+                    AccelMagRegisters::OFFSET_X_L_M.addr() | 0x80,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                ],
+            ),
+            // CTRL_REG0_XM through CTRL_REG7_XM (8 bytes, auto-increment)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![
+                    AccelMagRegisters::CTRL_REG0_XM.addr() | 0x80,
+                    config.ctrl_reg0_xm.into(),
+                    config.ctrl_reg1_xm.into(),
+                    config.ctrl_reg2_xm.into(),
+                    config.ctrl_reg3_xm.into(),
+                    config.ctrl_reg4_xm.into(),
+                    config.ctrl_reg5_xm.into(),
+                    config.ctrl_reg6_xm.into(),
+                    config.ctrl_reg7_xm.into(),
+                ],
+            ),
+            // FIFO_CTRL_REG (single byte)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![
+                    AccelMagRegisters::FIFO_CTRL_REG.addr(),
+                    config.fifo_ctrl_reg.into(),
+                ],
+            ),
+            // INT_GEN_1_REG (single byte)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![
+                    AccelMagRegisters::INT_GEN_1_REG.addr(),
+                    config.int_gen_1_reg.into(),
+                ],
+            ),
+            // INT_GEN_1_THS, INT_GEN_1_DURATION (2 bytes, auto-increment)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_GEN_1_THS.addr() | 0x80, 0x00, 0x00],
+            ),
+            // INT_GEN_2_REG (single byte)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![
+                    AccelMagRegisters::INT_GEN_2_REG.addr(),
+                    config.int_gen_2_reg.into(),
+                ],
+            ),
+            // INT_GEN_2_THS, INT_GEN_2_DURATION (2 bytes, auto-increment)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_GEN_2_THS.addr() | 0x80, 0x00, 0x00],
+            ),
+            // CLICK_CFG (single byte)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![AccelMagRegisters::CLICK_CFG.addr(), config.click_cfg.into()],
+            ),
+            // CLICK_THS through TIME_WINDOW (4 bytes, auto-increment)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![
+                    AccelMagRegisters::CLICK_THS.addr() | 0x80,
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00,
+                ],
+            ),
+            // ACT_THS, ACT_DUR (2 bytes, auto-increment)
+            I2cTransaction::write(
+                XM_ADDR,
+                vec![AccelMagRegisters::ACT_THS.addr() | 0x80, 0x00, 0x00],
+            ),
+        ]
+    }
+
+    /// Mock delay that does nothing (for testing init without real hardware)
+    struct MockDelay;
+    impl embedded_hal_async::delay::DelayNs for MockDelay {
+        async fn delay_ns(&mut self, _ns: u32) {}
+    }
+
+    #[tokio::test]
+    async fn test_init_sequence() {
+        let expectations = default_init_expectations();
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        driver.init(&mut MockDelay).await.unwrap();
+
+        driver.release().release().done();
+    }
+
+    // =========================================================================
+    // RUNTIME CONFIG TESTS
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_set_gyro_scale_writes_register() {
+        // Create driver, run init, then call set_gyro_scale
+        let mut expectations = default_init_expectations();
+
+        // After init, set_gyro_scale(Dps2000) writes CTRL_REG4_G (0x23)
+        // Default CTRL_REG4_G is 0x00 (Dps245, continuous, little-endian, no self-test, 4-wire)
+        // With Dps2000: FS bits [5:4] = 0b10, so byte = 0x20
+        let expected_reg4: u8 = registers::CtrlReg4G::new()
+            .with_fs(GyroScale::Dps2000)
+            .into();
+        expectations.push(I2cTransaction::write(
+            GYRO_ADDR,
+            vec![GyroRegisters::CTRL_REG4_G.addr(), expected_reg4],
+        ));
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        driver.init(&mut MockDelay).await.unwrap();
+        driver.set_gyro_scale(GyroScale::Dps2000).await.unwrap();
+
+        driver.release().release().done();
+    }
+
+    // =========================================================================
+    // SCALED READ TESTS
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_read_gyro_scaled() {
+        const AUTO_INCREMENT: u8 = 0x80;
+        // Raw values: X=1000, Y=-500, Z=250
+        let expectations = [I2cTransaction::write_read(
+            GYRO_ADDR,
+            vec![GyroRegisters::OUT_X_L_G.addr() | AUTO_INCREMENT],
+            vec![0xE8, 0x03, 0x0C, 0xFE, 0xFA, 0x00], // 1000, -500, 250 LE
+        )];
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        // Default scale is Dps245 → sensitivity 8.75 mdps/LSB = 0.00875 dps/LSB
+        // Set a known bias
+        driver.config.gyro_bias = (1.0, -0.5, 0.0);
+
+        let (gx, gy, gz) = driver.read_gyro().await.unwrap();
+
+        // Expected: raw * (8.75/1000) - bias
+        // X: 1000 * 0.00875 - 1.0 = 7.75
+        // Y: -500 * 0.00875 - (-0.5) = -3.875
+        // Z: 250 * 0.00875 - 0.0 = 2.1875
+        let epsilon = 0.001;
+        assert!((gx.as_f32() - 7.75).abs() < epsilon, "gx={}", gx.as_f32());
+        assert!(
+            (gy.as_f32() - (-3.875)).abs() < epsilon,
+            "gy={}",
+            gy.as_f32()
+        );
+        assert!((gz.as_f32() - 2.1875).abs() < epsilon, "gz={}", gz.as_f32());
+
+        driver.release().release().done();
+    }
+
+    // =========================================================================
+    // ERROR PROPAGATION TEST
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_error_propagation() {
+        use embedded_hal_async::i2c::ErrorKind;
+
+        const AUTO_INCREMENT: u8 = 0x80;
+        // Return an error on gyro read
+        let expectations = [I2cTransaction::write_read(
+            GYRO_ADDR,
+            vec![GyroRegisters::OUT_X_L_G.addr() | AUTO_INCREMENT],
+            vec![0u8; 6],
+        )
+        .with_error(ErrorKind::Other)];
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        let result = driver.read_gyro_raw().await;
+        assert!(matches!(result, Err(Error::GyroBus(_))));
+
+        driver.release().release().done();
+    }
+
+    // =========================================================================
+    // TEMPERATURE READ TEST
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_read_temp() {
+        const AUTO_INCREMENT: u8 = 0x80;
+
+        // Test positive value: raw 12-bit = 200 → 200/8.0 + 25.0 = 50.0°C
+        let expectations = [I2cTransaction::write_read(
+            XM_ADDR,
+            vec![AccelMagRegisters::OUT_TEMP_L_XM.addr() | AUTO_INCREMENT],
+            vec![0xC8, 0x00], // 200 LE
+        )];
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        let temp = driver.read_temp().await.unwrap();
+        let epsilon = 0.01;
+        assert!(
+            (temp.as_f32() - 50.0).abs() < epsilon,
+            "positive temp={}",
+            temp.as_f32()
+        );
+        driver.release().release().done();
+    }
+
+    #[tokio::test]
+    async fn test_read_temp_negative() {
+        const AUTO_INCREMENT: u8 = 0x80;
+
+        // Test negative value: raw 12-bit = -80 (0xFB0 sign-extended in 16-bit = 0xFB0)
+        // As i16 LE: low=0xB0, high=0x0F → i16 = 0x0FB0 = 4016
+        // After (raw << 4) >> 4 sign extension: 0xFB0 → -80
+        // Result: -80/8.0 + 25.0 = 15.0°C
+        let expectations = [I2cTransaction::write_read(
+            XM_ADDR,
+            vec![AccelMagRegisters::OUT_TEMP_L_XM.addr() | AUTO_INCREMENT],
+            vec![0xB0, 0x0F], // 12-bit -80 stored as i16 LE with upper 4 bits = 0xF
+        )];
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        let temp = driver.read_temp().await.unwrap();
+        let epsilon = 0.01;
+        assert!(
+            (temp.as_f32() - 15.0).abs() < epsilon,
+            "negative temp={}",
+            temp.as_f32()
+        );
         driver.release().release().done();
     }
 

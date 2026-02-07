@@ -757,6 +757,7 @@ name = "lsm9ds0"
 version = "0.1.0"
 dependencies = [
  "bitfield-struct",
+ "defmt",
  "embedded-hal-async",
  "embedded-hal-mock",
  "tokio",

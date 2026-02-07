@@ -35,7 +35,7 @@ embassy-sync = { workspace = true, features = ["defmt"] }
 embassy-time = { workspace = true, features = ["defmt", "defmt-timestamp-uptime"] }
 
 # LSM9DS0 driver
-lsm9ds0 = { path = "../../lsm9ds0" }
+lsm9ds0 = { path = "../../lsm9ds0", features = ["defmt"] }
 
 # Other dependencies
 defmt = { workspace = true }

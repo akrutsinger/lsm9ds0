@@ -50,7 +50,7 @@ async fn main(_spawner: Spawner) {
     let mut imu = Lsm9ds0::new_with_config(interface, config);
 
     if let Err(e) = imu.init(&mut Delay).await {
-        error!("Failed to initialize sensor: {:?}", Debug2Format(&e));
+        error!("Failed to initialize sensor: {:?}", e);
         return;
     }
 
@@ -65,28 +65,28 @@ async fn main(_spawner: Spawner) {
         let accel = match imu.read_accel().await {
             Ok((x, y, z)) => (x, y, z),
             Err(e) => {
-                warn!("Failed to read accelerometer: {:?}", Debug2Format(&e));
+                warn!("Failed to read accelerometer: {:?}", e);
                 continue;
             }
         };
         let gyro = match imu.read_gyro().await {
             Ok((x, y, z)) => (x, y, z),
             Err(e) => {
-                warn!("Failed to read gyroscope: {:?}", Debug2Format(&e));
+                warn!("Failed to read gyroscope: {:?}", e);
                 continue;
             }
         };
         let mag = match imu.read_mag().await {
             Ok((x, y, z)) => (x, y, z),
             Err(e) => {
-                warn!("Failed to read magnetometer: {:?}", Debug2Format(&e));
+                warn!("Failed to read magnetometer: {:?}", e);
                 continue;
             }
         };
         let temperature_celsius = match imu.read_temp().await {
             Ok(temp) => temp,
             Err(e) => {
-                warn!("Failed to read temperature: {:?}", Debug2Format(&e));
+                warn!("Failed to read temperature: {:?}", e);
                 continue;
             }
         };

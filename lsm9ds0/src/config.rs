@@ -30,6 +30,7 @@ pub const DEFAULT_TEMP_BIAS: f32 = 25.0;
 /// This struct maintains local copies of hardware register values, allowing configuration changes
 /// without reading from the device first.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Lsm9ds0Config {
     // === Gyro shadow registers ===
     pub(crate) ctrl_reg1_g: CtrlReg1G,

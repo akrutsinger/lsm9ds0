@@ -13,6 +13,7 @@ use bitfield_struct::bitfield;
 
 /// Gyroscope output data rate selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroDataRate {
     /// 95 Hz
@@ -54,6 +55,7 @@ impl GyroDataRate {
 /// | Bw2       | 25 Hz    | 50 Hz     | 50 Hz     | 50 Hz     |
 /// | Bw3       | 25 Hz    | 70 Hz     | 100 Hz    | 100 Hz    |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroBandwidth {
     /// Lowest bandwidth (12.5-30 Hz depending on ODR)
@@ -84,6 +86,7 @@ impl GyroBandwidth {
 
 /// Gyroscope full-scale selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroScale {
     /// ±245 degrees per second
@@ -121,6 +124,7 @@ impl GyroScale {
 
 /// Gyroscope high-pass filter mode selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroHpfMode {
     /// Normal mode (reset reading HP_RESET_FILTER)
@@ -152,6 +156,7 @@ impl GyroHpfMode {
 /// Gyroscope high-pass filter cutoff frequency selection
 /// The actual cutoff frequency depends on the ODR (see datasheet Table 26)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroHpfCutoff {
     #[default]
@@ -190,6 +195,7 @@ impl GyroHpfCutoff {
 
 /// Gyroscope self-test mode selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroSelfTest {
     #[default]
@@ -216,6 +222,7 @@ impl GyroSelfTest {
 
 /// Gyroscope interrupt/output selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroOutputSel {
     #[default]
@@ -240,6 +247,7 @@ impl GyroOutputSel {
 
 /// FIFO mode selection (shared by gyro and accel)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum FifoMode {
     #[default]
@@ -269,6 +277,7 @@ impl FifoMode {
 
 /// Accelerometer output data rate selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum AccelDataRate {
     #[default]
@@ -310,6 +319,7 @@ impl AccelDataRate {
 
 /// Accelerometer full-scale selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum AccelScale {
     /// ±2g
@@ -354,6 +364,7 @@ impl AccelScale {
 
 /// Accelerometer anti-alias filter bandwidth
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum AccelBandwidth {
     #[default]
@@ -380,6 +391,7 @@ impl AccelBandwidth {
 
 /// Accelerometer self-test mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum AccelSelfTest {
     #[default]
@@ -404,6 +416,7 @@ impl AccelSelfTest {
 
 /// Accelerometer high-pass filter mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum AccelHpfMode {
     #[default]
@@ -430,6 +443,7 @@ impl AccelHpfMode {
 
 /// Magnetometer output data rate selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum MagDataRate {
     Hz3_125 = 0b000,
@@ -461,6 +475,7 @@ impl MagDataRate {
 
 /// Magnetometer full-scale selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum MagScale {
     /// ±2 Gauss
@@ -501,6 +516,7 @@ impl MagScale {
 
 /// Magnetometer resolution selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum MagResolution {
     #[default]
@@ -523,6 +539,7 @@ impl MagResolution {
 
 /// Magnetometer sensor mode selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum MagMode {
     ContinuousConversion = 0b00,
@@ -547,6 +564,7 @@ impl MagMode {
 
 /// Enable/Disable state for features
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum Enable {
     #[default]
@@ -579,6 +597,7 @@ impl From<bool> for Enable {
 /// depends on axis enable bits. Use [`GyroPowerMode`] for complete gyroscope power mode control
 /// including sleep mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum PowerMode {
     #[default]
@@ -612,6 +631,7 @@ impl PowerMode {
 /// [`Lsm9ds0Config::with_gyro_power_mode`](crate::Lsm9ds0Config::with_gyro_power_mode) or
 /// [`Lsm9ds0::set_gyro_power_mode`](crate::Lsm9ds0::set_gyro_power_mode) for runtime control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum GyroPowerMode {
     /// Lowest power consumption, sensor completely off
@@ -625,6 +645,7 @@ pub enum GyroPowerMode {
 
 /// Block data update mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum BlockDataUpdate {
     #[default]
@@ -647,6 +668,7 @@ impl BlockDataUpdate {
 
 /// Output pin type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum OutputType {
     #[default]
@@ -669,6 +691,7 @@ impl OutputType {
 
 /// Interrupt active level (for h_lactive in CtrlReg3G: 0=high, 1=low)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum ActiveLevel {
     #[default]
@@ -691,6 +714,7 @@ impl ActiveLevel {
 
 /// Interrupt active level inverted (for iea in IntCtrlRegM: 0=low, 1=high)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum ActiveLevelInverted {
     #[default]
@@ -713,6 +737,7 @@ impl ActiveLevelInverted {
 
 /// Data byte order
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum Endianness {
     #[default]
@@ -735,6 +760,7 @@ impl Endianness {
 
 /// SPI interface mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum SpiMode {
     #[default]
@@ -757,6 +783,7 @@ impl SpiMode {
 
 /// Latch interrupt request
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum LatchInterrupt {
     #[default]
@@ -789,6 +816,7 @@ impl From<bool> for LatchInterrupt {
 
 /// Interrupt combination mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum InterruptCombination {
     #[default]
@@ -811,6 +839,7 @@ impl InterruptCombination {
 
 /// Magnetometer low power mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum MagLowPower {
     #[default]
@@ -833,6 +862,7 @@ impl MagLowPower {
 
 /// Click sign/direction
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum ClickSign {
     #[default]
@@ -860,7 +890,7 @@ impl ClickSign {
 /// CTRL_REG1_G - Gyroscope control register 1
 ///
 /// Address: 0x20, Default value: 0x07
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg1G {
     /// X-axis enable
     #[bits(1)]
@@ -885,7 +915,7 @@ pub struct CtrlReg1G {
 /// CTRL_REG2_G - Gyroscope control register 2
 ///
 /// Address: 0x21, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg2G {
     /// High-pass filter cutoff frequency selection
     #[bits(4)]
@@ -901,7 +931,7 @@ pub struct CtrlReg2G {
 /// CTRL_REG3_G - Gyroscope control register 3
 ///
 /// Address: 0x22, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg3G {
     /// FIFO empty interrupt on DRDY_G
     #[bits(1)]
@@ -932,7 +962,7 @@ pub struct CtrlReg3G {
 /// CTRL_REG4_G - Gyroscope control register 4
 ///
 /// Address: 0x23, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg4G {
     /// SPI mode selection
     #[bits(1)]
@@ -957,7 +987,7 @@ pub struct CtrlReg4G {
 /// CTRL_REG5_G - Gyroscope control register 5
 ///
 /// Address: 0x24, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg5G {
     /// Out selection configuration
     #[bits(2)]
@@ -982,7 +1012,7 @@ pub struct CtrlReg5G {
 /// STATUS_REG_G - Gyroscope status register
 ///
 /// Address: 0x27, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct StatusRegG {
     /// X-axis new data available
     pub xda: bool,
@@ -1005,7 +1035,7 @@ pub struct StatusRegG {
 /// FIFO_CTRL_REG_G - Gyroscope FIFO control register
 ///
 /// Address: 0x2E, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct FifoCtrlRegG {
     /// FIFO threshold (watermark level)
     #[bits(5)]
@@ -1018,7 +1048,7 @@ pub struct FifoCtrlRegG {
 /// FIFO_SRC_REG_G - Gyroscope FIFO source register
 ///
 /// Address: 0x2F, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct FifoSrcRegG {
     /// FIFO stored data level
     #[bits(5)]
@@ -1034,7 +1064,7 @@ pub struct FifoSrcRegG {
 /// INT1_CFG_G - Gyroscope interrupt configuration
 ///
 /// Address: 0x30, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct Int1CfgG {
     /// Enable interrupt generation on X low event
     #[bits(1)]
@@ -1065,7 +1095,7 @@ pub struct Int1CfgG {
 /// INT1_SRC_G - Gyroscope interrupt source register
 ///
 /// Address: 0x31, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct Int1SrcG {
     /// X low event
     pub xl: bool,
@@ -1089,7 +1119,7 @@ pub struct Int1SrcG {
 /// INT1_DURATION_G - Gyroscope interrupt minimum duration for event recognition
 ///
 /// Address: 0x38, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct Int1DurationG {
     /// Mimimum duration of the interrupt event to be recognized
     #[bits(7)]
@@ -1105,7 +1135,7 @@ pub struct Int1DurationG {
 /// STATUS_REG_M - Magnetometer status register
 ///
 /// Address: 0x07, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct StatusRegM {
     /// X-axis new data available
     pub xmda: bool,
@@ -1128,7 +1158,7 @@ pub struct StatusRegM {
 /// INT_CTRL_REG_M - Magnetometer interrupt control register
 ///
 /// Address: 0x12, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct IntCtrlRegM {
     /// Magnetic interrupt enable
     #[bits(1)]
@@ -1159,7 +1189,7 @@ pub struct IntCtrlRegM {
 /// INT_SRC_REG_M - Magnetometer interrupt source register
 ///
 /// Address: 0x13, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct IntSrcRegM {
     /// Magnetic interrupt event
     pub mint: bool,
@@ -1182,7 +1212,7 @@ pub struct IntSrcRegM {
 /// CTRL_REG0_XM - Accel/Mag control register 0
 ///
 /// Address: 0x1F, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg0Xm {
     /// High-pass filter for interrupt 2
     #[bits(1)]
@@ -1210,7 +1240,7 @@ pub struct CtrlReg0Xm {
 /// CTRL_REG1_XM - Accelerometer control register 1
 ///
 /// Address: 0x20, Default value: 0x07
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg1Xm {
     /// Acceleration X-axis enable
     #[bits(1)]
@@ -1232,7 +1262,7 @@ pub struct CtrlReg1Xm {
 /// CTRL_REG2_XM - Accelerometer control register 2
 ///
 /// Address: 0x21, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg2Xm {
     /// SPI mode selection
     #[bits(1)]
@@ -1251,7 +1281,7 @@ pub struct CtrlReg2Xm {
 /// CTRL_REG3_XM - Interrupt control register (INT1_XM)
 ///
 /// Address: 0x22, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg3Xm {
     /// FIFO empty on INT1_XM
     #[bits(1)]
@@ -1282,7 +1312,7 @@ pub struct CtrlReg3Xm {
 /// CTRL_REG4_XM - Interrupt control register (INT2_XM)
 ///
 /// Address: 0x23, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg4Xm {
     /// FIFO watermark on INT2_XM
     #[bits(1)]
@@ -1313,7 +1343,7 @@ pub struct CtrlReg4Xm {
 /// CTRL_REG5_XM - Magnetometer control register 5
 ///
 /// Address: 0x24, Default value: 0x18
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg5Xm {
     /// Latch interrupt on INT1
     #[bits(1)]
@@ -1335,7 +1365,7 @@ pub struct CtrlReg5Xm {
 /// CTRL_REG6_XM - Magnetometer control register 6
 ///
 /// Address: 0x25, Default value: 0x20
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg6Xm {
     /// Reserved
     #[bits(5)]
@@ -1351,7 +1381,7 @@ pub struct CtrlReg6Xm {
 /// CTRL_REG7_XM - Magnetometer control register 7
 ///
 /// Address: 0x26, Default value: 0x01
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct CtrlReg7Xm {
     /// Magnetic sensor mode
     #[bits(2)]
@@ -1373,7 +1403,7 @@ pub struct CtrlReg7Xm {
 /// STATUS_REG_A - Accelerometer status register
 ///
 /// Address: 0x27, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct StatusRegA {
     /// X-axis new data available
     pub xada: bool,
@@ -1396,7 +1426,7 @@ pub struct StatusRegA {
 /// FIFO_CTRL_REG - Accelerometer FIFO control register
 ///
 /// Address: 0x2E, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct FifoCtrlReg {
     /// FIFO threshold
     #[bits(5)]
@@ -1409,7 +1439,7 @@ pub struct FifoCtrlReg {
 /// FIFO_SRC_REG - Accelerometer FIFO source register
 ///
 /// Address: 0x2F, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct FifoSrcReg {
     /// FIFO stored data level
     #[bits(5)]
@@ -1425,7 +1455,7 @@ pub struct FifoSrcReg {
 /// INT_GEN_REG - Interrupt generator register (shared for INT1 and INT2)
 ///
 /// Addresses: 0x30 (INT_GEN_1_REG), 0x34 (INT_GEN_2_REG)
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct IntGenReg {
     /// Enable interrupt on X low event
     #[bits(1)]
@@ -1456,7 +1486,7 @@ pub struct IntGenReg {
 /// INT_GEN_SRC - Interrupt generator source register (shared for INT1 and INT2)
 ///
 /// Addresses: 0x31 (INT_GEN_1_SRC), 0x35 (INT_GEN_2_SRC)
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct IntGenSrc {
     /// X low event
     pub xl: bool,
@@ -1480,7 +1510,7 @@ pub struct IntGenSrc {
 /// CLICK_CFG - Click configuration register
 ///
 /// Address: 0x38, Default value: 0x00
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct ClickCfg {
     /// X single-click enable
     #[bits(1)]
@@ -1508,7 +1538,7 @@ pub struct ClickCfg {
 /// CLICK_SRC - Click source register
 ///
 /// Address: 0x39, Read-only
-#[bitfield(u8)]
+#[bitfield(u8, defmt = cfg(feature = "defmt"))]
 pub struct ClickSrc {
     /// X click detected
     pub x: bool,
@@ -1538,6 +1568,7 @@ pub struct ClickSrc {
 #[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum GyroRegisters {
     /// Device identification register
     WHO_AM_I_G = 0x0F,
@@ -1594,6 +1625,7 @@ impl GyroRegisters {
 #[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AccelMagRegisters {
     /// Temperature output registers
     OUT_TEMP_L_XM = 0x05,

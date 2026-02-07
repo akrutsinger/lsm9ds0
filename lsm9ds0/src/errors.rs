@@ -2,6 +2,7 @@
 
 /// Errors that can occur when communicating with the LSM9DS0
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<E> {
     /// I2C/SPI bus error during gyroscope communication
     GyroBus(E),
@@ -44,10 +45,12 @@ impl<E: core::fmt::Debug> core::fmt::Display for Error<E> {
 
 /// Wrapper for gyroscope bus errors, enabling `?` operator in interface methods
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct GyroError<E>(pub E);
 
 /// Wrapper for accelerometer/magnetometer bus errors, enabling `?` operator in interface methods
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct XmError<E>(pub E);
 
 impl<E> From<E> for GyroError<E> {

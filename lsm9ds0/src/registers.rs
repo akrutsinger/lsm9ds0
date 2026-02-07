@@ -567,6 +567,12 @@ impl Enable {
     }
 }
 
+impl From<bool> for Enable {
+    fn from(value: bool) -> Self {
+        if value { Self::Enabled } else { Self::Disabled }
+    }
+}
+
 /// Power mode for sensors (used in CTRL_REG1 PD bit)
 ///
 /// Note: This represents the PD bit state only. For the gyroscope, the actual operating mode also
@@ -767,6 +773,16 @@ impl LatchInterrupt {
         match value & 0b1 {
             0 => Self::NotLatched,
             _ => Self::Latched,
+        }
+    }
+}
+
+impl From<bool> for LatchInterrupt {
+    fn from(value: bool) -> Self {
+        if value {
+            Self::Latched
+        } else {
+            Self::NotLatched
         }
     }
 }

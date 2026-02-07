@@ -353,12 +353,9 @@ impl Lsm9ds0Config {
             self.ctrl_reg1_g.set_pd(PowerMode::Normal);
             // Restore saved axis states
             let (x, y, z) = self.gyro_axes_enabled;
-            self.ctrl_reg1_g
-                .set_xen(if x { Enable::Enabled } else { Enable::Disabled });
-            self.ctrl_reg1_g
-                .set_yen(if y { Enable::Enabled } else { Enable::Disabled });
-            self.ctrl_reg1_g
-                .set_zen(if z { Enable::Enabled } else { Enable::Disabled });
+            self.ctrl_reg1_g.set_xen(Enable::from(x));
+            self.ctrl_reg1_g.set_yen(Enable::from(y));
+            self.ctrl_reg1_g.set_zen(Enable::from(z));
         } else {
             self.ctrl_reg1_g.set_pd(PowerMode::PowerDown);
         }
@@ -398,12 +395,9 @@ impl Lsm9ds0Config {
                 self.ctrl_reg1_g.set_pd(PowerMode::Normal);
                 // Restore saved axis states
                 let (x, y, z) = self.gyro_axes_enabled;
-                self.ctrl_reg1_g
-                    .set_xen(if x { Enable::Enabled } else { Enable::Disabled });
-                self.ctrl_reg1_g
-                    .set_yen(if y { Enable::Enabled } else { Enable::Disabled });
-                self.ctrl_reg1_g
-                    .set_zen(if z { Enable::Enabled } else { Enable::Disabled });
+                self.ctrl_reg1_g.set_xen(Enable::from(x));
+                self.ctrl_reg1_g.set_yen(Enable::from(y));
+                self.ctrl_reg1_g.set_zen(Enable::from(z));
             }
         }
         self
@@ -434,12 +428,9 @@ impl Lsm9ds0Config {
         // Save for sleep/wake restoration
         self.gyro_axes_enabled = (x, y, z);
 
-        self.ctrl_reg1_g
-            .set_xen(if x { Enable::Enabled } else { Enable::Disabled });
-        self.ctrl_reg1_g
-            .set_yen(if y { Enable::Enabled } else { Enable::Disabled });
-        self.ctrl_reg1_g
-            .set_zen(if z { Enable::Enabled } else { Enable::Disabled });
+        self.ctrl_reg1_g.set_xen(Enable::from(x));
+        self.ctrl_reg1_g.set_yen(Enable::from(y));
+        self.ctrl_reg1_g.set_zen(Enable::from(z));
         self
     }
 
@@ -568,11 +559,7 @@ impl Lsm9ds0Config {
         } else {
             InterruptCombination::Or
         });
-        self.int1_cfg_g.set_lir(if latch {
-            LatchInterrupt::Latched
-        } else {
-            LatchInterrupt::NotLatched
-        });
+        self.int1_cfg_g.set_lir(LatchInterrupt::from(latch));
         self
     }
 
@@ -725,12 +712,9 @@ impl Lsm9ds0Config {
 
     /// Enable or disable individual accelerometer axes
     pub fn with_accel_axes(mut self, x: bool, y: bool, z: bool) -> Self {
-        self.ctrl_reg1_xm
-            .set_axen(if x { Enable::Enabled } else { Enable::Disabled });
-        self.ctrl_reg1_xm
-            .set_ayen(if y { Enable::Enabled } else { Enable::Disabled });
-        self.ctrl_reg1_xm
-            .set_azen(if z { Enable::Enabled } else { Enable::Disabled });
+        self.ctrl_reg1_xm.set_axen(Enable::from(x));
+        self.ctrl_reg1_xm.set_ayen(Enable::from(y));
+        self.ctrl_reg1_xm.set_azen(Enable::from(z));
         self
     }
 
@@ -884,11 +868,7 @@ impl Lsm9ds0Config {
 
     /// Set accelerometer interrupt 1 latch mode
     pub fn with_accel_int1_latch(mut self, latch: bool) -> Self {
-        self.ctrl_reg5_xm.set_lir1(if latch {
-            LatchInterrupt::Latched
-        } else {
-            LatchInterrupt::NotLatched
-        });
+        self.ctrl_reg5_xm.set_lir1(LatchInterrupt::from(latch));
         self
     }
 
@@ -994,11 +974,7 @@ impl Lsm9ds0Config {
 
     /// Set accelerometer interrupt 2 latch mode
     pub fn with_accel_int2_latch(mut self, latch: bool) -> Self {
-        self.ctrl_reg5_xm.set_lir2(if latch {
-            LatchInterrupt::Latched
-        } else {
-            LatchInterrupt::NotLatched
-        });
+        self.ctrl_reg5_xm.set_lir2(LatchInterrupt::from(latch));
         self
     }
 
@@ -1305,22 +1281,15 @@ impl Lsm9ds0Config {
         } else {
             Enable::Disabled
         });
-        self.int_ctrl_reg_m
-            .set_xmien(if x { Enable::Enabled } else { Enable::Disabled });
-        self.int_ctrl_reg_m
-            .set_ymien(if y { Enable::Enabled } else { Enable::Disabled });
-        self.int_ctrl_reg_m
-            .set_zmien(if z { Enable::Enabled } else { Enable::Disabled });
+        self.int_ctrl_reg_m.set_xmien(Enable::from(x));
+        self.int_ctrl_reg_m.set_ymien(Enable::from(y));
+        self.int_ctrl_reg_m.set_zmien(Enable::from(z));
         self.int_ctrl_reg_m.set_iea(if active_high {
             ActiveLevelInverted::ActiveHigh
         } else {
             ActiveLevelInverted::ActiveLow
         });
-        self.int_ctrl_reg_m.set_iel(if latch {
-            LatchInterrupt::Latched
-        } else {
-            LatchInterrupt::NotLatched
-        });
+        self.int_ctrl_reg_m.set_iel(LatchInterrupt::from(latch));
         self
     }
 

@@ -854,15 +854,9 @@ where
                 self.config.ctrl_reg1_g.set_pd(PowerMode::Normal);
                 // Restore saved axis states
                 let (x, y, z) = self.config.gyro_axes_enabled;
-                self.config
-                    .ctrl_reg1_g
-                    .set_xen(if x { Enable::Enabled } else { Enable::Disabled });
-                self.config
-                    .ctrl_reg1_g
-                    .set_yen(if y { Enable::Enabled } else { Enable::Disabled });
-                self.config
-                    .ctrl_reg1_g
-                    .set_zen(if z { Enable::Enabled } else { Enable::Disabled });
+                self.config.ctrl_reg1_g.set_xen(Enable::from(x));
+                self.config.ctrl_reg1_g.set_yen(Enable::from(y));
+                self.config.ctrl_reg1_g.set_zen(Enable::from(z));
             }
         }
         self.interface
@@ -885,15 +879,9 @@ where
         y: bool,
         z: bool,
     ) -> Result<(), Error<I::BusError>> {
-        self.config
-            .ctrl_reg1_g
-            .set_xen(if x { Enable::Enabled } else { Enable::Disabled });
-        self.config
-            .ctrl_reg1_g
-            .set_yen(if y { Enable::Enabled } else { Enable::Disabled });
-        self.config
-            .ctrl_reg1_g
-            .set_zen(if z { Enable::Enabled } else { Enable::Disabled });
+        self.config.ctrl_reg1_g.set_xen(Enable::from(x));
+        self.config.ctrl_reg1_g.set_yen(Enable::from(y));
+        self.config.ctrl_reg1_g.set_zen(Enable::from(z));
         self.interface
             .write_byte_gyro(
                 GyroRegisters::CTRL_REG1_G.addr(),
@@ -1003,15 +991,9 @@ where
         y: bool,
         z: bool,
     ) -> Result<(), Error<I::BusError>> {
-        self.config
-            .ctrl_reg1_xm
-            .set_axen(if x { Enable::Enabled } else { Enable::Disabled });
-        self.config
-            .ctrl_reg1_xm
-            .set_ayen(if y { Enable::Enabled } else { Enable::Disabled });
-        self.config
-            .ctrl_reg1_xm
-            .set_azen(if z { Enable::Enabled } else { Enable::Disabled });
+        self.config.ctrl_reg1_xm.set_axen(Enable::from(x));
+        self.config.ctrl_reg1_xm.set_ayen(Enable::from(y));
+        self.config.ctrl_reg1_xm.set_azen(Enable::from(z));
         self.interface
             .write_byte_xm(
                 AccelMagRegisters::CTRL_REG1_XM.addr(),

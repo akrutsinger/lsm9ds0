@@ -323,6 +323,8 @@ where
         // Hardware resets all register to power on defaults. Reset shadow register to match
         self.config = Lsm9ds0Config::default();
 
+        self.verify_device_ids().await?;
+
         Ok(())
     }
 

@@ -67,7 +67,7 @@ imu.init(&mut Delay).await?;
 Sensor parameters can be set at initialization or changed at runtime:
 
 ```rust
-use lsm9ds0::{GyroScale, AccelScale, MagScale, GyroDataRate};
+use lsm9ds0::{AccelScale, GyroDataRate, GyroScale, MagScale, Orientation};
 use embassy_time::Delay;
 
 // At initialization
@@ -81,8 +81,7 @@ imu.set_gyro_scale(GyroScale::Dps2000).await?;
 imu.set_accel_data_rate(AccelDataRate::Hz400).await?;
 
 // Calibrate the gyroscope and accelerometer during runtime
-imu.calibrate_gyro(&mut Delay).await?;
-imu.calibrate_accel(&mut Delay).await?;
+imu.calibrate_bias(&mut Delay, Orientation::ZUp).await?;
 ```
 
 ## Default Configuration

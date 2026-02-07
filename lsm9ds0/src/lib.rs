@@ -170,7 +170,56 @@ pub mod types;
 pub use config::*;
 pub use errors::Error;
 pub use interface::*;
-pub use registers::*;
+// Re-export user-facing register types. Internal control registers remain accessible via
+// `lsm9ds0::registers::` for advanced users.
+pub use registers::{
+    // Enums used by builder methods and runtime configuration
+    AccelBandwidth,
+    AccelDataRate,
+    AccelHpfMode,
+    // Register address enums
+    AccelMagRegisters,
+    AccelScale,
+    AccelSelfTest,
+    ActiveLevel,
+    ActiveLevelInverted,
+    BlockDataUpdate,
+    ClickSign,
+    // Status and source bitfield structs (returned by public methods)
+    ClickSrc,
+    Enable,
+    Endianness,
+    FifoMode,
+    FifoSrcReg,
+    FifoSrcRegG,
+    GyroBandwidth,
+    GyroDataRate,
+    GyroHpfCutoff,
+    GyroHpfMode,
+    GyroOutputSel,
+    GyroPowerMode,
+    GyroRegisters,
+    GyroScale,
+    GyroSelfTest,
+    Int1SrcG,
+    IntGenSrc,
+    IntSrcRegM,
+    InterruptCombination,
+    LatchInterrupt,
+    MagDataRate,
+    MagLowPower,
+    MagMode,
+    MagResolution,
+    MagScale,
+    OutputType,
+    PowerMode,
+    SpiMode,
+    StatusRegA,
+    StatusRegG,
+    StatusRegM,
+    // Device constants
+    device_constants,
+};
 pub use types::*;
 
 use embedded_hal_async::delay::DelayNs;

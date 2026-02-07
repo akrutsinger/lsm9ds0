@@ -1317,10 +1317,10 @@ impl Lsm9ds0Config {
             ActiveLevelInverted::ActiveLow
         });
         self.int_ctrl_reg_m.set_iel(if latch {
-            LatchInterrupt::NotLatched
-        } else {
             LatchInterrupt::Latched
-        }); // IEL: 0=latched, 1=not latched
+        } else {
+            LatchInterrupt::NotLatched
+        });
         self
     }
 

@@ -40,6 +40,16 @@ impl GyroDataRate {
             _ => Self::Hz760,
         }
     }
+
+    /// Get the output data rate in Hz
+    pub const fn hz(self) -> f32 {
+        match self {
+            Self::Hz95 => 95.0,
+            Self::Hz190 => 190.0,
+            Self::Hz380 => 380.0,
+            Self::Hz760 => 760.0,
+        }
+    }
 }
 
 /// Gyroscope bandwidth selection
@@ -313,6 +323,23 @@ impl AccelDataRate {
             0b1001 => Self::Hz800,
             0b1010 => Self::Hz1600,
             _ => Self::PowerDown,
+        }
+    }
+
+    /// Get the output data rate in Hz (returns 0.0 for PowerDown)
+    pub const fn hz(self) -> f32 {
+        match self {
+            Self::PowerDown => 0.0,
+            Self::Hz3_125 => 3.125,
+            Self::Hz6_25 => 6.25,
+            Self::Hz12_5 => 12.5,
+            Self::Hz25 => 25.0,
+            Self::Hz50 => 50.0,
+            Self::Hz100 => 100.0,
+            Self::Hz200 => 200.0,
+            Self::Hz400 => 400.0,
+            Self::Hz800 => 800.0,
+            Self::Hz1600 => 1600.0,
         }
     }
 }

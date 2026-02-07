@@ -1432,10 +1432,18 @@ where
     ///
     /// The calibration process:
     /// 1. Enables both gyro and accel FIFOs simultaneously in stream mode
-    /// 2. Waits for FIFOs to fill (time based on ODR, typically ~400ms)
+    /// 2. Waits for FIFOs to fill (time based on ODR)
     /// 3. Reads and averages samples from both FIFOs
     /// 4. For accelerometer, subtracts expected gravity based on `orientation`
     /// 5. Restores original FIFO settings
+    ///
+    /// Determining the estimated delay for calibration:
+    ///
+    /// - delay_ms = 32_FIFO_samples / ODR, with 10% margin and a minimum floor.
+    /// - Max delay between gyro and accelerometer sensor is used
+    ///   - Gyro 760 Hz & Accel 1600 Hz → ~46 ms (because gyro takes longer)
+    ///   - Gyro  95 Hz + Accel  100 Hz → ~370 ms (because gyro takes longer)
+    ///   - Accel 3.125 Hz              → ~11,264 ms (because accel can be super slow)
     ///
     /// # Arguments
     ///
@@ -1527,10 +1535,33 @@ where
             )
             .await?;
 
-        // Wait for both FIFOs to fill. At minimum gyro ODR of 95 Hz, 32 samples takes ~337ms. At
-        // minimum accel ODR of 3.125 Hz, it would take much longer, but typical usage is 50-100+
-        // Hz. Use 400ms which covers most configurations with margin.
-        delay.delay_ms(400).await;
+        // Wait for both FIFOs to fill based on the configured data rate (ODR).
+        // delay_ms = NUM_FIFO_SAMPLES / ODR, with 10% margin and a minimum floor.
+        //
+        // Use the max delay between the two sensors.
+        //
+        // Delay range by data rate (32 samples × 1.1 margin):
+        //   Gyro 760 Hz & Accel 1600 Hz → ~46 ms
+        //   Gyro  95 Hz + Accel  100 Hz → ~370 ms
+        //   Accel 3.125 Hz              → ~11,264 ms
+        const NUM_FIFO_SAMPLES: f32 = 32.0;
+        const MARGIN: f32 = 1.1;
+        const MIN_DELAY_MS: u32 = 10;
+
+        let gyro_hz = self.config.ctrl_reg1_g.dr().hz();
+        let accel_hz = self.config.ctrl_reg1_xm.aodr().hz();
+
+        let gyro_fill_ms = NUM_FIFO_SAMPLES * 1000.0 / gyro_hz;
+        let accel_fill_ms = if accel_hz > 0.0 {
+            NUM_FIFO_SAMPLES * 1000.0 / accel_hz
+        } else {
+            0.0
+        };
+
+        let fill_ms = gyro_fill_ms.max(accel_fill_ms);
+
+        let delay_ms = ((fill_ms * MARGIN) as u32).max(MIN_DELAY_MS);
+        delay.delay_ms(delay_ms).await;
 
         // Read sample counts from both FIFOs
         let gyro_samples = self.read_gyro_fifo_level().await?;

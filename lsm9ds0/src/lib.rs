@@ -1443,12 +1443,10 @@ where
 
         // Configure gyro FIFO: enable + stream mode + watermark at 31
         self.config.ctrl_reg5_g.set_fifo_en(Enable::Enabled);
-        self.config.fifo_ctrl_reg_g.set_fm(FifoMode::Stream);
         self.config.fifo_ctrl_reg_g.set_wtm(0x1F);
 
         // Configure accel FIFO: enable + stream mode + watermark at 31
         self.config.ctrl_reg0_xm.set_fifo_en(Enable::Enabled);
-        self.config.fifo_ctrl_reg.set_fm(FifoMode::Stream);
         self.config.fifo_ctrl_reg.set_fth(0x1F);
 
         // Write all FIFO configuration registers
@@ -1458,18 +1456,37 @@ where
                 self.config.ctrl_reg5_g.into(),
             )
             .await?;
+        self.config.fifo_ctrl_reg_g.set_fm(FifoMode::Bypass);
         self.interface
             .write_byte_gyro(
                 GyroRegisters::FIFO_CTRL_REG_G.addr(),
                 self.config.fifo_ctrl_reg_g.into(),
             )
             .await?;
+        self.config.fifo_ctrl_reg_g.set_fm(FifoMode::Stream);
+        self.interface
+            .write_byte_gyro(
+                GyroRegisters::FIFO_CTRL_REG_G.addr(),
+                self.config.fifo_ctrl_reg_g.into(),
+            )
+            .await?;
+
         self.interface
             .write_byte_xm(
                 AccelMagRegisters::CTRL_REG0_XM.addr(),
                 self.config.ctrl_reg0_xm.into(),
             )
             .await?;
+
+        self.config.fifo_ctrl_reg.set_fm(FifoMode::Bypass);
+        self.interface
+            .write_byte_xm(
+                AccelMagRegisters::FIFO_CTRL_REG.addr(),
+                self.config.fifo_ctrl_reg.into(),
+            )
+            .await?;
+
+        self.config.fifo_ctrl_reg.set_fm(FifoMode::Stream);
         self.interface
             .write_byte_xm(
                 AccelMagRegisters::FIFO_CTRL_REG.addr(),

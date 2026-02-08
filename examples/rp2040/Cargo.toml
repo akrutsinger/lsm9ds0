@@ -19,6 +19,10 @@ name = "simple-i2c"
 path = "src/bin/simple-i2c.rs"
 
 [[bin]]
+name = "simple-i2c-blocking"
+path = "src/bin/simple-i2c-blocking.rs"
+
+[[bin]]
 name = "simple-spi"
 path = "src/bin/simple-spi.rs"
 
@@ -30,6 +34,7 @@ path = "src/bin/kalman.rs"
 # Embassy dependencies
 embassy-embedded-hal = { workspace = true, features = ["defmt"] }
 embassy-executor = { workspace = true, features = ["arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-futures = { workspace = true }
 embassy-rp = { workspace = true, features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040", "rt"] }
 embassy-sync = { workspace = true, features = ["defmt"] }
 embassy-time = { workspace = true, features = ["defmt", "defmt-timestamp-uptime"] }

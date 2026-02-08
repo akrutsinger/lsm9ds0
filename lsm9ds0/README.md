@@ -84,6 +84,56 @@ imu.set_accel_data_rate(AccelDataRate::Hz400).await?;
 imu.calibrate_bias(&mut Delay, Orientation::ZUp).await?;
 ```
 
+### Blocking I2C / SPI
+
+This driver is built on `embedded-hal-async` traits, but it works with blocking buses too. The
+async methods on the driver still require `.await`, but if the underlying bus is blocking, they
+complete immediately with no executor overhead.
+
+You need two things:
+
+1. **An adapter** that wraps your blocking `embedded_hal::i2c::I2c` (or `SpiDevice`) to satisfy the
+   async trait. The async fn just calls the blocking method and returns — no actual suspension:
+
+```rust
+struct BlockingI2c<I>(I);
+
+impl<I: embedded_hal::i2c::I2c> embedded_hal::i2c::ErrorType for BlockingI2c<I> {
+    type Error = I::Error;
+}
+
+impl<I: embedded_hal::i2c::I2c> embedded_hal_async::i2c::I2c for BlockingI2c<I> {
+    async fn read(&mut self, address: u8, read: &mut [u8]) -> Result<(), Self::Error> {
+        self.0.read(address, read)
+    }
+    async fn write(&mut self, address: u8, write: &[u8]) -> Result<(), Self::Error> {
+        self.0.write(address, write)
+    }
+    async fn write_read(&mut self, address: u8, write: &[u8], read: &mut [u8]) -> Result<(), Self::Error> {
+        self.0.write_read(address, write, read)
+    }
+    async fn transaction(&mut self, address: u8, operations: &mut [embedded_hal::i2c::Operation<'_>]) -> Result<(), Self::Error> {
+        self.0.transaction(address, operations)
+    }
+}
+```
+
+2. **A trivial executor** like `embassy_futures::block_on` to run the async code synchronously:
+
+```rust
+use embassy_futures::block_on;
+
+let interface = I2cInterface::init(BlockingI2c(my_blocking_i2c));
+let mut imu = Lsm9ds0::new_with_config(interface, config);
+
+block_on(async {
+    imu.init(&mut delay).await?;
+    let (gx, gy, gz) = imu.read_gyro().await?;
+});
+```
+
+See the `examples/rp2040/src/bin/simple-i2c-blocking.rs` example for a complete working implementation.
+
 ## Default Configuration
 
 The driver's default configuration matches the device's power-on-reset register values from the datasheet, with two exceptions where the actual hardware defaults differ from the documented values:

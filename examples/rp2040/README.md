@@ -8,6 +8,7 @@ Example applications for the LSM9DS0 driver running on an RP2040 (specifically a
 |---------|-------------|
 | `simple-spi` | Basic SPI sensor reading at 10 Hz |
 | `simple-i2c` | Basic I2C sensor reading at 10 Hz |
+| `simple-i2c-blocking` | Blocking I2C with the async driver using `block_on` |
 | `channels` | Multi-task architecture using Embassy channels |
 | `kalman` | 1D Kalman filter applied to sensor data |
 | `i2c_blocking_reg_dump` | Blocking I2C register dump (no async) |

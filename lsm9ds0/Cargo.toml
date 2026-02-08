@@ -1,6 +1,6 @@
 [package]
 name = "lsm9ds0"
-version = "0.1.0"
+version = "0.2.0"
 description = "Platform-agnostic async driver for the LSM9DS0 IMU"
 readme = "README.md"
 homepage = "https://github.com/akrutsinger/lsm9ds0"

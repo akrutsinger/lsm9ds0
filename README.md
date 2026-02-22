@@ -61,4 +61,4 @@ cargo run --release --bin simple-spi
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -804,6 +804,68 @@ where
         ))
     }
 
+    /// Read all sensors in a single call.
+    ///
+    /// Returns gyroscope, accelerometer, magnetometer, and temperature data in a
+    /// [`SensorData`] struct. This is preferred over separate `read_gyro()`, `read_accel()`,
+    /// `read_mag()`, and `read_temp()` calls when temporal coherence matters, such as in sensor
+    /// fusion algorithms (Madgwick, Mahony, EKF).
+    ///
+    /// Note: while [`BlockDataUpdate`] prevents partial reads within each sensor, there is still
+    /// inter-sensor skew between the sequential bus transactions. For the tightest synchronization,
+    /// use hardware DRDY interrupts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::GyroBus`] if communication with the gyroscope fails, or
+    /// [`Error::XmBus`] if communication with the accelerometer/magnetometer fails.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0, I2cInterface, Error};
+    /// # struct Delay;
+    /// # impl embedded_hal_async::delay::DelayNs for Delay {
+    /// #     async fn delay_ns(&mut self, _ns: u32) {}
+    /// # }
+    /// # async fn example<I>(i2c: I) -> Result<(), Error<I::Error>>
+    /// # where I: embedded_hal_async::i2c::I2c
+    /// # {
+    /// use lsm9ds0::{Lsm9ds0Config, AccelDataRate, GyroDataRate, MagMode};
+    ///
+    /// let config = Lsm9ds0Config::new()
+    ///     .with_gyro_enabled(true)
+    ///     .with_gyro_data_rate(GyroDataRate::Hz95)
+    ///     .with_accel_data_rate(AccelDataRate::Hz100)
+    ///     .with_mag_mode(MagMode::ContinuousConversion)
+    ///     .with_temperature_enabled(true);
+    ///
+    /// let interface = I2cInterface::init(i2c);
+    /// let mut imu = Lsm9ds0::new_with_config(interface, config);
+    /// imu.init(&mut Delay).await?;
+    ///
+    /// let data = imu.read_all().await?;
+    /// let (gx, gy, gz) = data.gyro;
+    /// let (ax, ay, az) = data.accel;
+    /// let (mx, my, mz) = data.mag;
+    /// let temp = data.temp;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn read_all(&mut self) -> Result<types::SensorData, Error<I::BusError>> {
+        let gyro = self.read_gyro().await?;
+        let accel = self.read_accel().await?;
+        let mag = self.read_mag().await?;
+        let temp = self.read_temp().await?;
+
+        Ok(types::SensorData {
+            gyro,
+            accel,
+            mag,
+            temp,
+        })
+    }
+
     // =========================================================================
     // RUNTIME CONFIGURATION METHODS
     //
@@ -2184,6 +2246,116 @@ mod tests {
             "negative temp={}",
             temp.as_f32()
         );
+        driver.release().release().done();
+    }
+
+    // =========================================================================
+    // READ_ALL TEST
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_read_all() {
+        const AUTO_INCREMENT: u8 = 0x80;
+
+        // Gyro raw: X=1000, Y=-500, Z=250
+        // Accel raw: X=100, Y=200, Z=300
+        // Mag raw: X=500, Y=-1000, Z=1500
+        // Temp raw: 200 → 200/8.0 + 25.0 = 50.0°C
+        let expectations = [
+            // read_gyro → read_gyro_raw
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::OUT_X_L_G.addr() | AUTO_INCREMENT],
+                vec![0xE8, 0x03, 0x0C, 0xFE, 0xFA, 0x00],
+            ),
+            // read_accel → read_accel_raw
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::OUT_X_L_A.addr() | AUTO_INCREMENT],
+                vec![0x64, 0x00, 0xC8, 0x00, 0x2C, 0x01],
+            ),
+            // read_mag → read_mag_raw
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::OUT_X_L_M.addr() | AUTO_INCREMENT],
+                vec![0xF4, 0x01, 0x18, 0xFC, 0xDC, 0x05],
+            ),
+            // read_temp
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::OUT_TEMP_L_XM.addr() | AUTO_INCREMENT],
+                vec![0xC8, 0x00],
+            ),
+        ];
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        let data = driver.read_all().await.unwrap();
+
+        let epsilon = 0.001;
+
+        // Gyro: default scale ±245 dps, sensitivity 8.75 mdps/LSB, no bias
+        // X: 1000 * 0.00875 = 8.75, Y: -500 * 0.00875 = -4.375, Z: 250 * 0.00875 = 2.1875
+        let (gx, gy, gz) = data.gyro;
+        assert!((gx.as_f32() - 8.75).abs() < epsilon, "gx={}", gx.as_f32());
+        assert!(
+            (gy.as_f32() - (-4.375)).abs() < epsilon,
+            "gy={}",
+            gy.as_f32()
+        );
+        assert!(
+            (gz.as_f32() - 2.1875).abs() < epsilon,
+            "gz={}",
+            gz.as_f32()
+        );
+
+        // Accel: default scale ±2g, sensitivity 0.061 mg/LSB, no bias
+        // X: 100 * 0.000061 = 0.0061, Y: 200 * 0.000061 = 0.0122, Z: 300 * 0.000061 = 0.0183
+        let (ax, ay, az) = data.accel;
+        assert!(
+            (ax.as_f32() - 0.0061).abs() < epsilon,
+            "ax={}",
+            ax.as_f32()
+        );
+        assert!(
+            (ay.as_f32() - 0.0122).abs() < epsilon,
+            "ay={}",
+            ay.as_f32()
+        );
+        assert!(
+            (az.as_f32() - 0.0183).abs() < epsilon,
+            "az={}",
+            az.as_f32()
+        );
+
+        // Mag: default scale ±4 gauss (datasheet Table 3), sensitivity 0.16 mgauss/LSB
+        // X: 500 * 0.00016 = 0.08, Y: -1000 * 0.00016 = -0.16, Z: 1500 * 0.00016 = 0.24
+        let (mx, my, mz) = data.mag;
+        assert!(
+            (mx.as_f32() - 0.08).abs() < epsilon,
+            "mx={}",
+            mx.as_f32()
+        );
+        assert!(
+            (my.as_f32() - (-0.16)).abs() < epsilon,
+            "my={}",
+            my.as_f32()
+        );
+        assert!(
+            (mz.as_f32() - 0.24).abs() < epsilon,
+            "mz={}",
+            mz.as_f32()
+        );
+
+        // Temp: 200/8.0 + 25.0 = 50.0
+        assert!(
+            (data.temp.as_f32() - 50.0).abs() < epsilon,
+            "temp={}",
+            data.temp.as_f32()
+        );
+
         driver.release().release().done();
     }
 

@@ -172,3 +172,33 @@ impl From<Celsius> for f32 {
         c.0
     }
 }
+
+/// Combined reading from all sensors.
+///
+/// Contains gyroscope, accelerometer, magnetometer, and temperature data from a single sampling
+/// pass. Useful for sensor fusion algorithms (Madgwick, Mahony, EKF) that require all axes from the
+/// same time instant.
+///
+/// # Example
+///
+/// ```ignore
+/// let data = imu.read_all().await?;
+/// // Access individual sensor readings
+/// let (gx, gy, gz) = data.gyro;
+/// let (ax, ay, az) = data.accel;
+/// let (mx, my, mz) = data.mag;
+/// let temp = data.temp;
+/// ```
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[must_use]
+pub struct SensorData {
+    /// Gyroscope reading (x, y, z) in degrees per second.
+    pub gyro: (DegreesPerSecond, DegreesPerSecond, DegreesPerSecond),
+    /// Accelerometer reading (x, y, z) in g-force.
+    pub accel: (GForce, GForce, GForce),
+    /// Magnetometer reading (x, y, z) in gauss.
+    pub mag: (Gauss, Gauss, Gauss),
+    /// Temperature reading in Celsius.
+    pub temp: Celsius,
+}

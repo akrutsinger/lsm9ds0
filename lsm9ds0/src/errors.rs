@@ -22,6 +22,15 @@ pub enum Error<E> {
         /// Actual value read from WHO_AM_I register
         actual: u8,
     },
+    /// Hardware register does not match expected shadow register value
+    ConfigMismatch {
+        /// Register address where mismatch was detected
+        register: u8,
+        /// Expected value from shadow registers
+        expected: u8,
+        /// Actual value read from hardware
+        actual: u8,
+    },
 }
 
 impl<E: core::fmt::Debug> core::fmt::Display for Error<E> {
@@ -38,6 +47,15 @@ impl<E: core::fmt::Debug> core::fmt::Display for Error<E> {
                 f,
                 "invalid XM ID: expected 0x{:02X}, got 0x{:02X}",
                 expected, actual
+            ),
+            Error::ConfigMismatch {
+                register,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "config mismatch at register 0x{:02X}: expected 0x{:02X}, got 0x{:02X}",
+                register, expected, actual
             ),
         }
     }

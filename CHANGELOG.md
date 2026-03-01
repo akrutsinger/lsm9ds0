@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `#[must_use]` attribute on `GForce`, `Gauss`, `DegreesPerSecond`, and `Celsius` types to warn when sensor readings are discarded
 - `read_all()` method and `SensorData` struct for reading all sensors in a single call, useful for sensor fusion algorithms
 - `reapply_config()` method to re-synchronize shadow registers to hardware after bus errors or sensor resets
+- `verify_config()` method and `Error::ConfigMismatch` variant for detecting register corruption via readback comparison
 
 ## [0.2.0] - 2026-02-07
 

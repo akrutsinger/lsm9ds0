@@ -435,6 +435,362 @@ where
         self.apply_configs().await
     }
 
+    /// Verify that hardware registers match the driver's shadow register state.
+    ///
+    /// Reads back all writable configuration registers from both the gyroscope and
+    /// accelerometer/magnetometer and compares them against the expected shadow values.
+    ///
+    /// This is useful as a periodic health check to detect silent register corruption from EMI,
+    /// brown-outs, or other events that may reset the sensor without the driver's knowledge.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ConfigMismatch`] if any register does not match the expected value.
+    /// Returns [`Error::GyroBus`] or [`Error::XmBus`] if a bus error occurs during readback.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0, I2cInterface, Error};
+    /// # struct Delay;
+    /// # impl embedded_hal_async::delay::DelayNs for Delay {
+    /// #     async fn delay_ns(&mut self, _ns: u32) {}
+    /// # }
+    /// # async fn example<I>(i2c: I) -> Result<(), Error<I::Error>>
+    /// # where I: embedded_hal_async::i2c::I2c
+    /// # {
+    /// let interface = I2cInterface::init(i2c);
+    /// let mut imu = Lsm9ds0::new(interface);
+    /// imu.init(&mut Delay).await?;
+    ///
+    /// // Periodic health check
+    /// if imu.verify_config().await.is_err() {
+    ///     // Registers corrupted — re-apply config
+    ///     imu.reapply_config().await?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn verify_config(&mut self) -> Result<(), Error<I::BusError>> {
+        // Helper closure to compare a slice of expected bytes against hardware
+        // starting at base_addr. Returns the first mismatch found.
+        //
+        // We can't use an actual closure because async closures capturing &mut self
+        // don't work, so we inline the reads and use a shared comparison function.
+        fn find_mismatch(base_addr: u8, expected: &[u8], actual: &[u8]) -> Option<(u8, u8, u8)> {
+            for (i, (&exp, &act)) in expected.iter().zip(actual.iter()).enumerate() {
+                if exp != act {
+                    return Some((base_addr + i as u8, exp, act));
+                }
+            }
+            None
+        }
+
+        // === Gyroscope registers ===
+
+        // CTRL_REG1_G through CTRL_REG5_G (0x20-0x24)
+        let expected_g_ctrl: [u8; 5] = [
+            self.config.ctrl_reg1_g.into(),
+            self.config.ctrl_reg2_g.into(),
+            self.config.ctrl_reg3_g.into(),
+            self.config.ctrl_reg4_g.into(),
+            self.config.ctrl_reg5_g.into(),
+        ];
+        let mut actual_g_ctrl = [0u8; 5];
+        self.interface
+            .read_gyro(GyroRegisters::CTRL_REG1_G.addr(), &mut actual_g_ctrl)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            GyroRegisters::CTRL_REG1_G.addr(),
+            &expected_g_ctrl,
+            &actual_g_ctrl,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // FIFO_CTRL_REG_G (0x2E)
+        let mut actual = [0u8; 1];
+        self.interface
+            .read_gyro(GyroRegisters::FIFO_CTRL_REG_G.addr(), &mut actual)
+            .await?;
+        let expected_val: u8 = self.config.fifo_ctrl_reg_g.into();
+        if actual[0] != expected_val {
+            return Err(Error::ConfigMismatch {
+                register: GyroRegisters::FIFO_CTRL_REG_G.addr(),
+                expected: expected_val,
+                actual: actual[0],
+            });
+        }
+
+        // INT1_CFG_G (0x30)
+        self.interface
+            .read_gyro(GyroRegisters::INT1_CFG_G.addr(), &mut actual)
+            .await?;
+        let expected_val: u8 = self.config.int1_cfg_g.into();
+        if actual[0] != expected_val {
+            return Err(Error::ConfigMismatch {
+                register: GyroRegisters::INT1_CFG_G.addr(),
+                expected: expected_val,
+                actual: actual[0],
+            });
+        }
+
+        // INT1_THS_XH_G through INT1_DURATION_G (0x32-0x38)
+        let expected_g_int: [u8; 7] = [
+            ((self.config.gyro_int_ths_x >> 8) & 0x7F) as u8,
+            (self.config.gyro_int_ths_x & 0xFF) as u8,
+            ((self.config.gyro_int_ths_y >> 8) & 0x7F) as u8,
+            (self.config.gyro_int_ths_y & 0xFF) as u8,
+            ((self.config.gyro_int_ths_z >> 8) & 0x7F) as u8,
+            (self.config.gyro_int_ths_z & 0xFF) as u8,
+            self.config.int1_duration_g.into(),
+        ];
+        let mut actual_g_int = [0u8; 7];
+        self.interface
+            .read_gyro(GyroRegisters::INT1_THS_XH_G.addr(), &mut actual_g_int)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            GyroRegisters::INT1_THS_XH_G.addr(),
+            &expected_g_int,
+            &actual_g_int,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // === Accelerometer/Magnetometer registers ===
+
+        // INT_CTRL_REG_M (0x12)
+        self.interface
+            .read_xm(AccelMagRegisters::INT_CTRL_REG_M.addr(), &mut actual)
+            .await?;
+        let expected_val: u8 = self.config.int_ctrl_reg_m.into();
+        if actual[0] != expected_val {
+            return Err(Error::ConfigMismatch {
+                register: AccelMagRegisters::INT_CTRL_REG_M.addr(),
+                expected: expected_val,
+                actual: actual[0],
+            });
+        }
+
+        // INT_THS_L_M, INT_THS_H_M (0x14-0x15)
+        let expected_mag_ths: [u8; 2] = [
+            (self.config.mag_int_ths & 0xFF) as u8,
+            ((self.config.mag_int_ths >> 8) & 0x7F) as u8,
+        ];
+        let mut actual_mag_ths = [0u8; 2];
+        self.interface
+            .read_xm(AccelMagRegisters::INT_THS_L_M.addr(), &mut actual_mag_ths)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            AccelMagRegisters::INT_THS_L_M.addr(),
+            &expected_mag_ths,
+            &actual_mag_ths,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // OFFSET_X_L_M through OFFSET_Z_H_M (0x16-0x1B)
+        let expected_mag_off: [u8; 6] = [
+            (self.config.mag_offset_x & 0xFF) as u8,
+            ((self.config.mag_offset_x >> 8) & 0xFF) as u8,
+            (self.config.mag_offset_y & 0xFF) as u8,
+            ((self.config.mag_offset_y >> 8) & 0xFF) as u8,
+            (self.config.mag_offset_z & 0xFF) as u8,
+            ((self.config.mag_offset_z >> 8) & 0xFF) as u8,
+        ];
+        let mut actual_mag_off = [0u8; 6];
+        self.interface
+            .read_xm(AccelMagRegisters::OFFSET_X_L_M.addr(), &mut actual_mag_off)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            AccelMagRegisters::OFFSET_X_L_M.addr(),
+            &expected_mag_off,
+            &actual_mag_off,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // CTRL_REG0_XM through CTRL_REG7_XM (0x1F-0x26)
+        let expected_xm_ctrl: [u8; 8] = [
+            self.config.ctrl_reg0_xm.into(),
+            self.config.ctrl_reg1_xm.into(),
+            self.config.ctrl_reg2_xm.into(),
+            self.config.ctrl_reg3_xm.into(),
+            self.config.ctrl_reg4_xm.into(),
+            self.config.ctrl_reg5_xm.into(),
+            self.config.ctrl_reg6_xm.into(),
+            self.config.ctrl_reg7_xm.into(),
+        ];
+        let mut actual_xm_ctrl = [0u8; 8];
+        self.interface
+            .read_xm(AccelMagRegisters::CTRL_REG0_XM.addr(), &mut actual_xm_ctrl)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            AccelMagRegisters::CTRL_REG0_XM.addr(),
+            &expected_xm_ctrl,
+            &actual_xm_ctrl,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // FIFO_CTRL_REG (0x2E)
+        self.interface
+            .read_xm(AccelMagRegisters::FIFO_CTRL_REG.addr(), &mut actual)
+            .await?;
+        let expected_val: u8 = self.config.fifo_ctrl_reg.into();
+        if actual[0] != expected_val {
+            return Err(Error::ConfigMismatch {
+                register: AccelMagRegisters::FIFO_CTRL_REG.addr(),
+                expected: expected_val,
+                actual: actual[0],
+            });
+        }
+
+        // INT_GEN_1_REG (0x30)
+        self.interface
+            .read_xm(AccelMagRegisters::INT_GEN_1_REG.addr(), &mut actual)
+            .await?;
+        let expected_val: u8 = self.config.int_gen_1_reg.into();
+        if actual[0] != expected_val {
+            return Err(Error::ConfigMismatch {
+                register: AccelMagRegisters::INT_GEN_1_REG.addr(),
+                expected: expected_val,
+                actual: actual[0],
+            });
+        }
+
+        // INT_GEN_1_THS, INT_GEN_1_DURATION (0x32-0x33)
+        let expected_gen1: [u8; 2] = [
+            self.config.int_gen_1_ths & 0x7F,
+            self.config.int_gen_1_duration & 0x7F,
+        ];
+        let mut actual_gen1 = [0u8; 2];
+        self.interface
+            .read_xm(AccelMagRegisters::INT_GEN_1_THS.addr(), &mut actual_gen1)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            AccelMagRegisters::INT_GEN_1_THS.addr(),
+            &expected_gen1,
+            &actual_gen1,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // INT_GEN_2_REG (0x34)
+        self.interface
+            .read_xm(AccelMagRegisters::INT_GEN_2_REG.addr(), &mut actual)
+            .await?;
+        let expected_val: u8 = self.config.int_gen_2_reg.into();
+        if actual[0] != expected_val {
+            return Err(Error::ConfigMismatch {
+                register: AccelMagRegisters::INT_GEN_2_REG.addr(),
+                expected: expected_val,
+                actual: actual[0],
+            });
+        }
+
+        // INT_GEN_2_THS, INT_GEN_2_DURATION (0x36-0x37)
+        let expected_gen2: [u8; 2] = [
+            self.config.int_gen_2_ths & 0x7F,
+            self.config.int_gen_2_duration & 0x7F,
+        ];
+        let mut actual_gen2 = [0u8; 2];
+        self.interface
+            .read_xm(AccelMagRegisters::INT_GEN_2_THS.addr(), &mut actual_gen2)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            AccelMagRegisters::INT_GEN_2_THS.addr(),
+            &expected_gen2,
+            &actual_gen2,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // CLICK_CFG (0x38)
+        self.interface
+            .read_xm(AccelMagRegisters::CLICK_CFG.addr(), &mut actual)
+            .await?;
+        let expected_val: u8 = self.config.click_cfg.into();
+        if actual[0] != expected_val {
+            return Err(Error::ConfigMismatch {
+                register: AccelMagRegisters::CLICK_CFG.addr(),
+                expected: expected_val,
+                actual: actual[0],
+            });
+        }
+
+        // CLICK_THS through TIME_WINDOW (0x3A-0x3D)
+        let expected_click: [u8; 4] = [
+            self.config.click_ths & 0x7F,
+            self.config.time_limit_ms,
+            self.config.time_latency_ms,
+            self.config.time_window_ms,
+        ];
+        let mut actual_click = [0u8; 4];
+        self.interface
+            .read_xm(AccelMagRegisters::CLICK_THS.addr(), &mut actual_click)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            AccelMagRegisters::CLICK_THS.addr(),
+            &expected_click,
+            &actual_click,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        // ACT_THS, ACT_DUR (0x3E-0x3F)
+        let expected_act: [u8; 2] = [self.config.act_ths & 0x7F, self.config.act_dur];
+        let mut actual_act = [0u8; 2];
+        self.interface
+            .read_xm(AccelMagRegisters::ACT_THS.addr(), &mut actual_act)
+            .await?;
+        if let Some((reg, exp, act)) = find_mismatch(
+            AccelMagRegisters::ACT_THS.addr(),
+            &expected_act,
+            &actual_act,
+        ) {
+            return Err(Error::ConfigMismatch {
+                register: reg,
+                expected: exp,
+                actual: act,
+            });
+        }
+
+        Ok(())
+    }
+
     /// Verify device IDs match expected values
     async fn verify_device_ids(&mut self) -> Result<(), Error<I::BusError>> {
         let mut id = [0u8];
@@ -2521,6 +2877,282 @@ mod tests {
         interface.write_gyro(test_addr, &test_data).await.unwrap();
 
         interface.release().done();
+    }
+
+    // =========================================================================
+    // VERIFY_CONFIG TESTS
+    // =========================================================================
+
+    /// Build the I2C read expectations for verify_config() with default config.
+    /// All default shadow registers are 0x00 except CTRL_REG5_XM which defaults to 0x18.
+    fn verify_config_expectations(config: &Lsm9ds0Config) -> std::vec::Vec<I2cTransaction> {
+        const AUTO_INCREMENT: u8 = 0x80;
+
+        let ctrl_reg5_xm_val: u8 = config.ctrl_reg5_xm.into();
+
+        vec![
+            // 1. Gyro CTRL_REG1_G through CTRL_REG5_G (5 bytes)
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::CTRL_REG1_G.addr() | AUTO_INCREMENT],
+                vec![
+                    config.ctrl_reg1_g.into(),
+                    config.ctrl_reg2_g.into(),
+                    config.ctrl_reg3_g.into(),
+                    config.ctrl_reg4_g.into(),
+                    config.ctrl_reg5_g.into(),
+                ],
+            ),
+            // 2. Gyro FIFO_CTRL_REG_G (1 byte)
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::FIFO_CTRL_REG_G.addr()],
+                vec![config.fifo_ctrl_reg_g.into()],
+            ),
+            // 3. Gyro INT1_CFG_G (1 byte)
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::INT1_CFG_G.addr()],
+                vec![config.int1_cfg_g.into()],
+            ),
+            // 4. Gyro INT1_THS_XH through INT1_DURATION (7 bytes)
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::INT1_THS_XH_G.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, config.int1_duration_g.into()],
+            ),
+            // 5. XM INT_CTRL_REG_M (1 byte)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_CTRL_REG_M.addr()],
+                vec![config.int_ctrl_reg_m.into()],
+            ),
+            // 6. XM INT_THS_L_M, INT_THS_H_M (2 bytes)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_THS_L_M.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00],
+            ),
+            // 7. XM OFFSET_X_L_M through OFFSET_Z_H_M (6 bytes)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::OFFSET_X_L_M.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            ),
+            // 8. XM CTRL_REG0_XM through CTRL_REG7_XM (8 bytes)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::CTRL_REG0_XM.addr() | AUTO_INCREMENT],
+                vec![
+                    config.ctrl_reg0_xm.into(),
+                    config.ctrl_reg1_xm.into(),
+                    config.ctrl_reg2_xm.into(),
+                    config.ctrl_reg3_xm.into(),
+                    config.ctrl_reg4_xm.into(),
+                    ctrl_reg5_xm_val,
+                    config.ctrl_reg6_xm.into(),
+                    config.ctrl_reg7_xm.into(),
+                ],
+            ),
+            // 9. XM FIFO_CTRL_REG (1 byte)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::FIFO_CTRL_REG.addr()],
+                vec![config.fifo_ctrl_reg.into()],
+            ),
+            // 10. XM INT_GEN_1_REG (1 byte)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_GEN_1_REG.addr()],
+                vec![config.int_gen_1_reg.into()],
+            ),
+            // 11. XM INT_GEN_1_THS, INT_GEN_1_DURATION (2 bytes)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_GEN_1_THS.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00],
+            ),
+            // 12. XM INT_GEN_2_REG (1 byte)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_GEN_2_REG.addr()],
+                vec![config.int_gen_2_reg.into()],
+            ),
+            // 13. XM INT_GEN_2_THS, INT_GEN_2_DURATION (2 bytes)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_GEN_2_THS.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00],
+            ),
+            // 14. XM CLICK_CFG (1 byte)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::CLICK_CFG.addr()],
+                vec![config.click_cfg.into()],
+            ),
+            // 15. XM CLICK_THS through TIME_WINDOW (4 bytes)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::CLICK_THS.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00, 0x00, 0x00],
+            ),
+            // 16. XM ACT_THS, ACT_DUR (2 bytes)
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::ACT_THS.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00],
+            ),
+        ]
+    }
+
+    #[tokio::test]
+    async fn test_verify_config_pass() {
+        let config = Lsm9ds0Config::default();
+        let expectations = verify_config_expectations(&config);
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        let result = driver.verify_config().await;
+        assert!(result.is_ok(), "verify_config should pass: {:?}", result);
+
+        driver.release().release().done();
+    }
+
+    #[tokio::test]
+    async fn test_verify_config_detects_gyro_mismatch() {
+        let config = Lsm9ds0Config::default();
+        const AUTO_INCREMENT: u8 = 0x80;
+
+        // Return corrupted CTRL_REG3_G (offset 2 from CTRL_REG1_G base 0x20 → register 0x22)
+        let corrupted_reg3_g: u8 = 0xFF;
+        let expectations = vec![
+            // First read: Gyro CTRL_REG1-5 — CTRL_REG3_G is corrupted
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::CTRL_REG1_G.addr() | AUTO_INCREMENT],
+                vec![
+                    config.ctrl_reg1_g.into(),
+                    config.ctrl_reg2_g.into(),
+                    corrupted_reg3_g, // CTRL_REG3_G corrupted
+                    config.ctrl_reg4_g.into(),
+                    config.ctrl_reg5_g.into(),
+                ],
+            ),
+        ];
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        let result = driver.verify_config().await;
+        match result {
+            Err(Error::ConfigMismatch {
+                register,
+                expected,
+                actual,
+            }) => {
+                assert_eq!(register, GyroRegisters::CTRL_REG3_G.addr());
+                assert_eq!(expected, config.ctrl_reg3_g.into());
+                assert_eq!(actual, corrupted_reg3_g);
+            }
+            other => panic!("expected ConfigMismatch, got {:?}", other),
+        }
+
+        driver.release().release().done();
+    }
+
+    #[tokio::test]
+    async fn test_verify_config_detects_xm_mismatch() {
+        let config = Lsm9ds0Config::default();
+        const AUTO_INCREMENT: u8 = 0x80;
+
+        // All gyro reads pass, but XM CTRL_REG1_XM (offset 1 from 0x1F → register 0x20)
+        // returns a corrupted value
+        let corrupted_ctrl_reg1_xm: u8 = 0xAB;
+
+        let expectations = vec![
+            // Gyro reads all pass
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::CTRL_REG1_G.addr() | AUTO_INCREMENT],
+                vec![
+                    config.ctrl_reg1_g.into(),
+                    config.ctrl_reg2_g.into(),
+                    config.ctrl_reg3_g.into(),
+                    config.ctrl_reg4_g.into(),
+                    config.ctrl_reg5_g.into(),
+                ],
+            ),
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::FIFO_CTRL_REG_G.addr()],
+                vec![config.fifo_ctrl_reg_g.into()],
+            ),
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::INT1_CFG_G.addr()],
+                vec![config.int1_cfg_g.into()],
+            ),
+            I2cTransaction::write_read(
+                GYRO_ADDR,
+                vec![GyroRegisters::INT1_THS_XH_G.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, config.int1_duration_g.into()],
+            ),
+            // XM reads - first few pass
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_CTRL_REG_M.addr()],
+                vec![config.int_ctrl_reg_m.into()],
+            ),
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::INT_THS_L_M.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00],
+            ),
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::OFFSET_X_L_M.addr() | AUTO_INCREMENT],
+                vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            ),
+            // CTRL_REG0-7_XM — CTRL_REG1_XM (index 1) is corrupted
+            I2cTransaction::write_read(
+                XM_ADDR,
+                vec![AccelMagRegisters::CTRL_REG0_XM.addr() | AUTO_INCREMENT],
+                vec![
+                    config.ctrl_reg0_xm.into(),
+                    corrupted_ctrl_reg1_xm, // CTRL_REG1_XM corrupted
+                    config.ctrl_reg2_xm.into(),
+                    config.ctrl_reg3_xm.into(),
+                    config.ctrl_reg4_xm.into(),
+                    config.ctrl_reg5_xm.into(),
+                    config.ctrl_reg6_xm.into(),
+                    config.ctrl_reg7_xm.into(),
+                ],
+            ),
+        ];
+
+        let i2c = I2cMock::new(&expectations);
+        let interface = I2cInterface::init(i2c);
+        let mut driver = Lsm9ds0::new(interface);
+
+        let result = driver.verify_config().await;
+        match result {
+            Err(Error::ConfigMismatch {
+                register,
+                expected,
+                actual,
+            }) => {
+                // CTRL_REG1_XM is at address 0x20
+                assert_eq!(register, AccelMagRegisters::CTRL_REG1_XM.addr());
+                assert_eq!(expected, config.ctrl_reg1_xm.into());
+                assert_eq!(actual, corrupted_ctrl_reg1_xm);
+            }
+            other => panic!("expected ConfigMismatch, got {:?}", other),
+        }
+
+        driver.release().release().done();
     }
 
     #[tokio::test]

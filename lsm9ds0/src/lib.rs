@@ -1884,6 +1884,221 @@ where
         Ok(ClickSrc::from(data[0]))
     }
 
+    /// Run the hardware self-test for the gyroscope and accelerometer.
+    ///
+    /// The self-test activates an internal actuation force that deflects each sensor's proof mass.
+    /// By comparing readings with self-test enabled vs disabled, the method verifies that the
+    /// sensor's mechanical and electrical paths are functioning within datasheet specifications.
+    ///
+    /// The device **must be stationary** during self-test. The method saves and restores all
+    /// modified register settings (scale, self-test bits, FIFO) so the driver is left in its
+    /// original state afterward.
+    ///
+    /// # Self-test thresholds (from LSM9DS0 datasheet)
+    ///
+    /// - **Gyroscope** (at ±245 dps): 20–250 dps absolute change per axis
+    /// - **Accelerometer** (at ±2g): 60–1700 mg absolute change per axis
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::GyroBus`] or [`Error::XmBus`] if communication fails.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0, I2cInterface, Error, Lsm9ds0Config, GyroDataRate, AccelDataRate};
+    /// # struct Delay;
+    /// # impl embedded_hal_async::delay::DelayNs for Delay {
+    /// #     async fn delay_ns(&mut self, _ns: u32) {}
+    /// # }
+    /// # async fn example<I>(i2c: I) -> Result<(), Error<I::Error>>
+    /// # where I: embedded_hal_async::i2c::I2c
+    /// # {
+    /// let config = Lsm9ds0Config::new()
+    ///     .with_gyro_enabled(true)
+    ///     .with_gyro_data_rate(GyroDataRate::Hz190)
+    ///     .with_accel_data_rate(AccelDataRate::Hz100);
+    ///
+    /// let interface = I2cInterface::init(i2c);
+    /// let mut imu = Lsm9ds0::new_with_config(interface, config);
+    /// imu.init(&mut Delay).await?;
+    ///
+    /// let result = imu.self_test(&mut Delay).await?;
+    /// if result.gyro_passed && result.accel_passed {
+    ///     // Sensors are within specification
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn self_test<D: DelayNs>(
+        &mut self,
+        delay: &mut D,
+    ) -> Result<types::SelfTestResult, Error<I::BusError>> {
+        // Datasheet self-test thresholds (Table 2 & 3, LSM9DS0)
+        // Gyroscope at ±245 dps scale: |NOST - ST| must be in [min, max] dps
+        const GYRO_ST_MIN_DPS: f32 = 20.0;
+        const GYRO_ST_MAX_DPS: f32 = 250.0;
+        // Accelerometer at ±2g scale: |NOST - ST| must be in [min, max] mg
+        const ACCEL_ST_MIN_MG: f32 = 60.0;
+        const ACCEL_ST_MAX_MG: f32 = 1700.0;
+
+        const NUM_SAMPLES: u32 = 10;
+
+        // Save current settings that we'll modify
+        let saved_gyro_scale = self.config.ctrl_reg4_g.fs();
+        let saved_gyro_st = self.config.ctrl_reg4_g.st();
+        let saved_accel_scale = self.config.ctrl_reg2_xm.afs();
+        let saved_accel_st = self.config.ctrl_reg2_xm.ast();
+
+        // Force scales required for self-test thresholds
+        // Gyro must be at ±245 dps for the datasheet thresholds to apply
+        self.config.ctrl_reg4_g.set_fs(GyroScale::Dps245);
+        self.config.ctrl_reg4_g.set_st(GyroSelfTest::Disabled);
+        self.interface
+            .write_byte_gyro(
+                GyroRegisters::CTRL_REG4_G.addr(),
+                self.config.ctrl_reg4_g.into(),
+            )
+            .await?;
+
+        // Accel must be at ±2g for the datasheet thresholds to apply
+        self.config.ctrl_reg2_xm.set_afs(AccelScale::G2);
+        self.config.ctrl_reg2_xm.set_ast(AccelSelfTest::Normal);
+        self.interface
+            .write_byte_xm(
+                AccelMagRegisters::CTRL_REG2_XM.addr(),
+                self.config.ctrl_reg2_xm.into(),
+            )
+            .await?;
+
+        // Let output settle after scale change
+        delay.delay_ms(100).await;
+
+        // Collect baseline (self-test disabled)
+        // Discard first reading after config change
+        let _ = self.read_gyro_raw().await?;
+        let _ = self.read_accel_raw().await?;
+
+        let mut gyro_baseline: (i32, i32, i32) = (0, 0, 0);
+        let mut accel_baseline: (i32, i32, i32) = (0, 0, 0);
+
+        for _ in 0..NUM_SAMPLES {
+            // Wait for new data at the configured ODR
+            delay.delay_ms(20).await;
+            let (gx, gy, gz) = self.read_gyro_raw().await?;
+            gyro_baseline.0 += gx as i32;
+            gyro_baseline.1 += gy as i32;
+            gyro_baseline.2 += gz as i32;
+
+            let (ax, ay, az) = self.read_accel_raw().await?;
+            accel_baseline.0 += ax as i32;
+            accel_baseline.1 += ay as i32;
+            accel_baseline.2 += az as i32;
+        }
+
+        // Enable self-test
+        self.config.ctrl_reg4_g.set_st(GyroSelfTest::Mode0);
+        self.interface
+            .write_byte_gyro(
+                GyroRegisters::CTRL_REG4_G.addr(),
+                self.config.ctrl_reg4_g.into(),
+            )
+            .await?;
+
+        self.config
+            .ctrl_reg2_xm
+            .set_ast(AccelSelfTest::PositiveSign);
+        self.interface
+            .write_byte_xm(
+                AccelMagRegisters::CTRL_REG2_XM.addr(),
+                self.config.ctrl_reg2_xm.into(),
+            )
+            .await?;
+
+        // Let self-test actuation settle
+        delay.delay_ms(100).await;
+
+        // Discard first reading after self-test enable
+        let _ = self.read_gyro_raw().await?;
+        let _ = self.read_accel_raw().await?;
+
+        // Collect self-test readings
+        let mut gyro_st: (i32, i32, i32) = (0, 0, 0);
+        let mut accel_st: (i32, i32, i32) = (0, 0, 0);
+
+        for _ in 0..NUM_SAMPLES {
+            delay.delay_ms(20).await;
+            let (gx, gy, gz) = self.read_gyro_raw().await?;
+            gyro_st.0 += gx as i32;
+            gyro_st.1 += gy as i32;
+            gyro_st.2 += gz as i32;
+
+            let (ax, ay, az) = self.read_accel_raw().await?;
+            accel_st.0 += ax as i32;
+            accel_st.1 += ay as i32;
+            accel_st.2 += az as i32;
+        }
+
+        // Disable self-test and restore original settings
+        self.config.ctrl_reg4_g.set_fs(saved_gyro_scale);
+        self.config.ctrl_reg4_g.set_st(saved_gyro_st);
+        self.interface
+            .write_byte_gyro(
+                GyroRegisters::CTRL_REG4_G.addr(),
+                self.config.ctrl_reg4_g.into(),
+            )
+            .await?;
+
+        self.config.ctrl_reg2_xm.set_afs(saved_accel_scale);
+        self.config.ctrl_reg2_xm.set_ast(saved_accel_st);
+        self.interface
+            .write_byte_xm(
+                AccelMagRegisters::CTRL_REG2_XM.addr(),
+                self.config.ctrl_reg2_xm.into(),
+            )
+            .await?;
+
+        // Compute deltas
+        let n = NUM_SAMPLES as f32;
+
+        // Gyro: convert LSB delta to dps using ±245 sensitivity (8.75 mdps/LSB)
+        let gyro_sensitivity_dps = GyroScale::Dps245.sensitivity() / 1000.0;
+        let gyro_delta = (
+            ((gyro_st.0 as f32 - gyro_baseline.0 as f32) / n * gyro_sensitivity_dps).abs(),
+            ((gyro_st.1 as f32 - gyro_baseline.1 as f32) / n * gyro_sensitivity_dps).abs(),
+            ((gyro_st.2 as f32 - gyro_baseline.2 as f32) / n * gyro_sensitivity_dps).abs(),
+        );
+
+        // Accel: convert LSB delta to mg using ±2g sensitivity (0.061 mg/LSB)
+        let accel_sensitivity_mg = AccelScale::G2.sensitivity();
+        let accel_delta = (
+            ((accel_st.0 as f32 - accel_baseline.0 as f32) / n * accel_sensitivity_mg).abs(),
+            ((accel_st.1 as f32 - accel_baseline.1 as f32) / n * accel_sensitivity_mg).abs(),
+            ((accel_st.2 as f32 - accel_baseline.2 as f32) / n * accel_sensitivity_mg).abs(),
+        );
+
+        let gyro_passed = gyro_delta.0 >= GYRO_ST_MIN_DPS
+            && gyro_delta.0 <= GYRO_ST_MAX_DPS
+            && gyro_delta.1 >= GYRO_ST_MIN_DPS
+            && gyro_delta.1 <= GYRO_ST_MAX_DPS
+            && gyro_delta.2 >= GYRO_ST_MIN_DPS
+            && gyro_delta.2 <= GYRO_ST_MAX_DPS;
+
+        let accel_passed = accel_delta.0 >= ACCEL_ST_MIN_MG
+            && accel_delta.0 <= ACCEL_ST_MAX_MG
+            && accel_delta.1 >= ACCEL_ST_MIN_MG
+            && accel_delta.1 <= ACCEL_ST_MAX_MG
+            && accel_delta.2 >= ACCEL_ST_MIN_MG
+            && accel_delta.2 <= ACCEL_ST_MAX_MG;
+
+        Ok(types::SelfTestResult {
+            gyro_passed,
+            gyro_delta,
+            accel_passed,
+            accel_delta,
+        })
+    }
+
     /// Calibrate gyroscope and accelerometer bias using FIFO averaging.
     ///
     /// This method collects samples while the device is stationary and calculates bias values that

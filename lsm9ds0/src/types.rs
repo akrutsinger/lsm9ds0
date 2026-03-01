@@ -202,3 +202,30 @@ pub struct SensorData {
     /// Temperature reading in Celsius.
     pub temp: Celsius,
 }
+
+/// Result of the hardware self-test procedure.
+///
+/// Contains the absolute change (delta) in each axis when self-test mode is activated. These deltas
+/// are compared against the datasheet thresholds to determine pass/fail.
+///
+/// # Example
+///
+/// ```ignore
+/// let result = imu.self_test(&mut Delay).await?;
+/// if result.gyro_passed && result.accel_passed {
+///     // All sensors within spec
+/// }
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[must_use]
+pub struct SelfTestResult {
+    /// Whether the gyroscope self-test passed (all axes within datasheet thresholds).
+    pub gyro_passed: bool,
+    /// Gyroscope self-test delta (x, y, z) in dps.
+    pub gyro_delta: (f32, f32, f32),
+    /// Whether the accelerometer self-test passed (all axes within datasheet thresholds).
+    pub accel_passed: bool,
+    /// Accelerometer self-test delta (x, y, z) in mg.
+    pub accel_delta: (f32, f32, f32),
+}

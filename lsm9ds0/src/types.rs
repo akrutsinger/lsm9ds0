@@ -50,6 +50,7 @@ impl Orientation {
 /// Acceleration measurement in g-force (1g ≈ 9.80665 m/s²).
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[must_use]
 pub struct GForce(f32);
 
 impl GForce {
@@ -78,6 +79,7 @@ impl From<GForce> for f32 {
 /// Magnetic field measurement in gauss.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[must_use]
 pub struct Gauss(f32);
 
 impl Gauss {
@@ -111,6 +113,7 @@ impl From<Gauss> for f32 {
 /// Angular velocity measurement in degrees per second.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[must_use]
 pub struct DegreesPerSecond(f32);
 
 impl DegreesPerSecond {
@@ -139,6 +142,7 @@ impl From<DegreesPerSecond> for f32 {
 /// Temperature measurement in Celsius.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[must_use]
 pub struct Celsius(f32);
 
 impl Celsius {

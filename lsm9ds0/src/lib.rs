@@ -398,6 +398,43 @@ where
         &self.config
     }
 
+    /// Re-apply the current shadow register configuration to hardware.
+    ///
+    /// Use this to re-synchronize the device after a bus error, brown-out, or any event
+    /// that may have reset the sensor without the driver's knowledge. Unlike [`init`](Self::init),
+    /// this skips WHO_AM_I verification and calibration, making it faster for error recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::GyroBus`] if communication with the gyroscope fails, or
+    /// [`Error::XmBus`] if communication with the accelerometer/magnetometer fails.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0, I2cInterface, Error};
+    /// # struct Delay;
+    /// # impl embedded_hal_async::delay::DelayNs for Delay {
+    /// #     async fn delay_ns(&mut self, _ns: u32) {}
+    /// # }
+    /// # async fn example<I>(i2c: I) -> Result<(), Error<I::Error>>
+    /// # where I: embedded_hal_async::i2c::I2c
+    /// # {
+    /// let interface = I2cInterface::init(i2c);
+    /// let mut imu = Lsm9ds0::new(interface);
+    /// imu.init(&mut Delay).await?;
+    ///
+    /// // After a bus error or suspected sensor reset, re-sync config
+    /// if imu.read_gyro().await.is_err() {
+    ///     imu.reapply_config().await?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn reapply_config(&mut self) -> Result<(), Error<I::BusError>> {
+        self.apply_configs().await
+    }
+
     /// Verify device IDs match expected values
     async fn verify_device_ids(&mut self) -> Result<(), Error<I::BusError>> {
         let mut id = [0u8];

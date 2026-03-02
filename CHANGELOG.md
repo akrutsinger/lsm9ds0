@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `verify_config()` method and `Error::ConfigMismatch` variant for detecting register corruption via readback comparison
 - `self_test()` method and `SelfTestResult` struct for hardware self-test of gyroscope and accelerometer against datasheet thresholds
 
+### Changed
+
+- Move unit tests to `lsm9ds0/src/tests.rs` to reduce `lsm9ds0/src/lib.rs` size and clutter
+
 ## [0.2.0] - 2026-02-07
 
 ### Added

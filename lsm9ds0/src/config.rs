@@ -435,7 +435,25 @@ impl Lsm9ds0Config {
         self
     }
 
-    /// Configure gyroscope high-pass filter
+    /// Configure the gyroscope high-pass filter.
+    ///
+    /// - `enabled`: routes HPF output to the data registers and FIFO
+    /// - `mode`: filter behaviour — [`GyroHpfMode::NormalReset`] (reset on read of
+    ///   `INT1_SRC_G`), [`GyroHpfMode::Reference`] (subtract a reference value set via
+    ///   [`Lsm9ds0::set_gyro_reference`](crate::Lsm9ds0::set_gyro_reference)), or
+    ///   [`GyroHpfMode::Normal`] (standard HPF)
+    /// - `cutoff`: cutoff frequency index (0–9); actual frequency depends on ODR —
+    ///   see [`Lsm9ds0Config::gyro_hpf_cutoff_hz`] or datasheet Table 25
+    ///
+    /// ```
+    /// use lsm9ds0::{Lsm9ds0Config, GyroDataRate, GyroHpfMode, GyroHpfCutoff};
+    ///
+    /// // Standard HPF at ~0.9 Hz cutoff with 95 Hz ODR (cutoff index 3, see datasheet Table 25)
+    /// let config = Lsm9ds0Config::new()
+    ///     .with_gyro_enabled(true)
+    ///     .with_gyro_data_rate(GyroDataRate::Hz95)
+    ///     .with_gyro_hpf(true, GyroHpfMode::Normal, GyroHpfCutoff::Cutoff3);
+    /// ```
     pub fn with_gyro_hpf(
         mut self,
         enabled: bool,
@@ -452,7 +470,12 @@ impl Lsm9ds0Config {
         self
     }
 
-    /// Configure gyroscope FIFO
+    /// Configure the gyroscope FIFO.
+    ///
+    /// - `enabled`: gates FIFO output into the gyroscope data registers
+    /// - `mode`: FIFO operating mode (e.g., [`FifoMode::Bypass`], [`FifoMode::Stream`],
+    ///   [`FifoMode::Fifo`]); see datasheet Table 54 for full descriptions
+    /// - `watermark`: number of samples (0–31) at which the watermark flag is set
     pub fn with_gyro_fifo(mut self, enabled: bool, mode: FifoMode, watermark: u8) -> Self {
         self.ctrl_reg5_g.set_fifo_en(if enabled {
             Enable::Enabled
@@ -597,7 +620,21 @@ impl Lsm9ds0Config {
         self
     }
 
-    /// Set gyroscope interrupt wait policy
+    /// Set whether the interrupt signal holds for the full duration after the condition clears.
+    ///
+    /// When `true`, the INT_G pin stays active for `duration` ODR cycles after the measurement
+    /// drops back below threshold (symmetrical de-assertion). When `false` (default), the
+    /// interrupt clears as soon as the measurement falls below threshold.
+    ///
+    /// ```
+    /// use lsm9ds0::Lsm9ds0Config;
+    ///
+    /// // Hold the interrupt pin active for 5 ODR cycles after motion stops
+    /// let config = Lsm9ds0Config::new()
+    ///     .with_gyro_motion_threshold(500)
+    ///     .with_gyro_int_duration(5)
+    ///     .with_gyro_int_wait(true);
+    /// ```
     pub fn with_gyro_int_wait(mut self, wait: bool) -> Self {
         self.int1_duration_g.set_wait(wait);
         self
@@ -735,7 +772,22 @@ impl Lsm9ds0Config {
         self
     }
 
-    /// Configure accelerometer high-pass filter
+    /// Configure the accelerometer high-pass filter.
+    ///
+    /// - `enabled`: routes HPF output to the data registers (filtered data)
+    /// - `mode`: filter behaviour — [`AccelHpfMode::NormalReset`] (reset on read of
+    ///   `INT_GEN_x_SRC`), [`AccelHpfMode::Reference`] (subtract a reference value set via
+    ///   [`Lsm9ds0::set_accel_reference`](crate::Lsm9ds0::set_accel_reference)), or
+    ///   [`AccelHpfMode::Normal`] / [`AccelHpfMode::AutoReset`] (standard HPF modes)
+    ///
+    /// ```
+    /// use lsm9ds0::{Lsm9ds0Config, AccelDataRate, AccelHpfMode};
+    ///
+    /// // Remove DC offset / gravity from accelerometer output
+    /// let config = Lsm9ds0Config::new()
+    ///     .with_accel_data_rate(AccelDataRate::Hz100)
+    ///     .with_accel_hpf(true, AccelHpfMode::Normal);
+    /// ```
     pub fn with_accel_hpf(mut self, enabled: bool, mode: AccelHpfMode) -> Self {
         self.ctrl_reg7_xm.set_afds(if enabled {
             Enable::Enabled
@@ -771,7 +823,12 @@ impl Lsm9ds0Config {
         self
     }
 
-    /// Configure accelerometer FIFO
+    /// Configure the accelerometer FIFO.
+    ///
+    /// - `enabled`: gates FIFO output into the accelerometer data registers
+    /// - `mode`: FIFO operating mode (e.g., [`FifoMode::Bypass`], [`FifoMode::Stream`],
+    ///   [`FifoMode::Fifo`]); see datasheet Table 54 for full descriptions
+    /// - `watermark`: number of samples (0–31) at which the watermark flag is set
     pub fn with_accel_fifo(mut self, enabled: bool, mode: FifoMode, watermark: u8) -> Self {
         self.ctrl_reg0_xm.set_fifo_en(if enabled {
             Enable::Enabled
@@ -1267,7 +1324,23 @@ impl Lsm9ds0Config {
         self
     }
 
-    /// Configure magnetometer interrupt
+    /// Configure the magnetometer interrupt.
+    ///
+    /// - `enabled`: enables the interrupt generator (master switch)
+    /// - `x`, `y`, `z`: enable interrupt generation for each axis individually
+    /// - `active_high`: when `true`, the interrupt pin is active-high; when `false`, active-low
+    /// - `latch`: when `true`, the interrupt pin latches until the source register is read;
+    ///   when `false`, the pin pulses and clears automatically
+    ///
+    /// ```
+    /// use lsm9ds0::{Lsm9ds0Config, MagMode, MagScale};
+    ///
+    /// // Trigger on any axis exceeding the threshold, active-high, auto-clearing
+    /// let config = Lsm9ds0Config::new()
+    ///     .with_mag_mode(MagMode::ContinuousConversion)
+    ///     .with_mag_int(true, true, true, true, true, false)
+    ///     .with_mag_int_threshold(2000);
+    /// ```
     pub fn with_mag_int(
         mut self,
         enabled: bool,

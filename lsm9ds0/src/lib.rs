@@ -259,7 +259,12 @@ impl<I> Lsm9ds0<I>
 where
     I: Interface,
 {
-    /// Create a new LSM9DS0 driver instance
+    /// Create a new LSM9DS0 driver instance with default configuration.
+    ///
+    /// All sensors start in power-down mode. Call [`with_gyro_enabled`](Lsm9ds0Config::with_gyro_enabled),
+    /// [`with_accel_data_rate`](Lsm9ds0Config::with_accel_data_rate), and
+    /// [`with_mag_mode`](Lsm9ds0Config::with_mag_mode) on a [`Lsm9ds0Config`] to enable them,
+    /// or use [`Lsm9ds0::new_with_config`] to pass a pre-built configuration.
     pub fn new(interface: I) -> Self {
         Self {
             interface,
@@ -289,17 +294,24 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// use embassy_time::Delay;
-    /// use lsm9ds0::{Lsm9ds0, Lsm9ds0Config, I2cInterface, Orientation};
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0Config, I2cInterface, AccelDataRate, Orientation, Lsm9ds0, Error};
+    /// # struct Delay;
+    /// # impl embedded_hal_async::delay::DelayNs for Delay {
+    /// #     async fn delay_ns(&mut self, _ns: u32) {}
+    /// # }
+    /// # async fn example<I: embedded_hal_async::i2c::I2c>(i2c: I) -> Result<(), Error<I::Error>> {
+    /// use lsm9ds0::{Lsm9ds0Config, AccelDataRate, Orientation};
     ///
     /// let config = Lsm9ds0Config::new()
     ///     .with_gyro_enabled(true)
     ///     .with_accel_data_rate(AccelDataRate::Hz100)
     ///     .with_auto_calibration(Orientation::ZUp);
     ///
-    /// let mut imu = Lsm9ds0::new_with_config(interface, config);
+    /// let mut imu = Lsm9ds0::new_with_config(I2cInterface::init(i2c), config);
     /// imu.init(&mut Delay).await?;  // Calibrates automatically
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn init<D: DelayNs>(&mut self, delay: &mut D) -> Result<(), Error<I::BusError>> {
         // Verify we can talk to both chips
@@ -335,16 +347,17 @@ where
     /// [`Error::XmBus`] if communication with the accelerometer/magnetometer fails.
     ///
     /// # Example
-    /// ```ignore
-    /// # use lsm9ds0::Error;
-    /// # async fn example<I>(i2c: I) -> Result<(), Error<I::Error>>
-    /// # where I: embedded_hal_async::i2c::I2c
-    /// # {
-    /// use embassy_time::Delay;
+    /// ```no_run
+    /// # use lsm9ds0::{I2cInterface, Lsm9ds0, Error};
+    /// # struct Delay;
+    /// # impl embedded_hal_async::delay::DelayNs for Delay {
+    /// #     async fn delay_ns(&mut self, _ns: u32) {}
+    /// # }
+    /// # async fn example<I: embedded_hal_async::i2c::I2c>(i2c: I) -> Result<(), Error<I::Error>> {
     /// use lsm9ds0::{I2cInterface, Lsm9ds0};
     ///
     /// let interface = I2cInterface::init(i2c);
-    /// let imu = Lsm9ds0::new(interface);
+    /// let mut imu = Lsm9ds0::new(interface);
     ///
     /// imu.software_reset(&mut Delay).await?;
     /// # Ok(())
@@ -1030,7 +1043,22 @@ where
         self.read_gyro_raw().await
     }
 
-    /// Read raw gyroscope data.
+    /// Read raw gyroscope data as signed 16-bit ADC counts.
+    ///
+    /// No scaling, unit conversion, or bias correction is applied. To convert to degrees per
+    /// second, multiply by [`Lsm9ds0Config::gyro_sensitivity`] and divide by 1000. For
+    /// calibrated readings in typed units, use [`read_gyro`](Self::read_gyro) instead.
+    ///
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0, I2cInterface, Error};
+    /// # async fn example<I: embedded_hal_async::i2c::I2c>(imu: &mut Lsm9ds0<I2cInterface<I>>)
+    /// #     -> Result<(), Error<I::Error>> {
+    /// let (rx, ry, rz) = imu.read_gyro_raw().await?;
+    /// let sens = imu.config().gyro_sensitivity() / 1000.0; // mdps/LSB → dps/LSB
+    /// let (x, y, z) = (rx as f32 * sens, ry as f32 * sens, rz as f32 * sens);
+    /// # Ok(())
+    /// # }
+    /// ```
     ///
     /// # Errors
     ///
@@ -1098,7 +1126,11 @@ where
         self.read_accel_raw().await
     }
 
-    /// Read raw accelerometer data.
+    /// Read raw accelerometer data as signed 16-bit ADC counts.
+    ///
+    /// No scaling, unit conversion, or bias correction is applied. To convert to g-force,
+    /// multiply by [`Lsm9ds0Config::accel_sensitivity`] and divide by 1000. For calibrated
+    /// readings in typed units, use [`read_accel`](Self::read_accel) instead.
     ///
     /// # Errors
     ///
@@ -1136,7 +1168,11 @@ where
         ))
     }
 
-    /// Read raw magnetometer data.
+    /// Read raw magnetometer data as signed 16-bit ADC counts.
+    ///
+    /// No scaling or unit conversion is applied. To convert to gauss, multiply by
+    /// [`Lsm9ds0Config::mag_sensitivity`] and divide by 1000. For calibrated readings in typed
+    /// units, use [`read_mag`](Self::read_mag) instead.
     ///
     /// # Errors
     ///
@@ -1335,7 +1371,9 @@ where
     /// Returns [`Error::GyroBus`] if communication with the gyroscope fails.
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0, I2cInterface, GyroPowerMode, Error};
+    /// # async fn example<I: embedded_hal_async::i2c::I2c>(mut imu: Lsm9ds0<I2cInterface<I>>) -> Result<(), Error<I::Error>> {
     /// use lsm9ds0::GyroPowerMode;
     ///
     /// // Enter sleep mode for faster wake-up
@@ -1343,6 +1381,8 @@ where
     ///
     /// // Wake up to normal operation
     /// imu.set_gyro_power_mode(GyroPowerMode::Normal).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn set_gyro_power_mode(
         &mut self,
@@ -2133,8 +2173,13 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// use embassy_time::Delay;
+    /// ```no_run
+    /// # use lsm9ds0::{Lsm9ds0, I2cInterface, Orientation, Error};
+    /// # struct Delay;
+    /// # impl embedded_hal_async::delay::DelayNs for Delay {
+    /// #     async fn delay_ns(&mut self, _ns: u32) {}
+    /// # }
+    /// # async fn example<I: embedded_hal_async::i2c::I2c>(mut imu: Lsm9ds0<I2cInterface<I>>) -> Result<(), Error<I::Error>> {
     /// use lsm9ds0::Orientation;
     ///
     /// // Calibrate with sensor Z-axis pointing up
@@ -2142,6 +2187,8 @@ where
     ///
     /// // Now readings are bias-corrected
     /// let (gx, gy, gz) = imu.read_gyro().await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn calibrate_bias<D: DelayNs>(
         &mut self,

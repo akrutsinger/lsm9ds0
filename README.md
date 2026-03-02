@@ -11,9 +11,8 @@ Platform-agnostic async Rust driver for the ST LSM9DS0 IMU (accelerometer, gyros
 
 ## Quick Start
 
-```toml
-[dependencies]
-lsm9ds0 = "0.1"
+```sh
+cargo add lsm9ds0
 ```
 
 ```rust

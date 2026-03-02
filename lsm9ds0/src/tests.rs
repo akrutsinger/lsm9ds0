@@ -2,7 +2,7 @@ extern crate std;
 
 use super::*;
 use embedded_hal_mock::eh1::i2c::{Mock as I2cMock, Transaction as I2cTransaction};
-use registers::{AccelMagRegisters, CtrlReg4G, GyroRegisters};
+use registers::{AccelMagRegisters, CtrlReg0Xm, CtrlReg1G, CtrlReg4G, CtrlReg5G, GyroRegisters};
 use std::vec;
 
 // I2C addresses from device_constants
@@ -168,23 +168,10 @@ fn assert_send() {
 // INIT SEQUENCE TEST
 // =========================================================================
 
-/// Build the I2C transaction expectations for a full `init()` with default config.
-fn default_init_expectations() -> std::vec::Vec<I2cTransaction> {
-    let config = Lsm9ds0Config::default();
-
+/// Build the I2C transaction expectations for `apply_configs()` with the given config.
+/// This covers all register writes without the WHO_AM_I device ID reads.
+fn write_config_expectations(config: &Lsm9ds0Config) -> std::vec::Vec<I2cTransaction> {
     vec![
-        // verify_device_ids: read WHO_AM_I_G (single byte, no auto-increment)
-        I2cTransaction::write_read(
-            GYRO_ADDR,
-            vec![GyroRegisters::WHO_AM_I_G.addr()],
-            vec![registers::device_constants::gyro::DEVICE_ID],
-        ),
-        // verify_device_ids: read WHO_AM_I_XM (single byte, no auto-increment)
-        I2cTransaction::write_read(
-            XM_ADDR,
-            vec![AccelMagRegisters::WHO_AM_I_XM.addr()],
-            vec![registers::device_constants::xm::DEVICE_ID],
-        ),
         // apply_configs: CTRL_REG1_G through CTRL_REG5_G (0x20-0x24, 5 bytes, auto-increment)
         I2cTransaction::write(
             GYRO_ADDR,
@@ -321,6 +308,27 @@ fn default_init_expectations() -> std::vec::Vec<I2cTransaction> {
             vec![AccelMagRegisters::ACT_THS.addr() | 0x80, 0x00, 0x00],
         ),
     ]
+}
+
+/// Build the I2C transaction expectations for a full `init()` with default config.
+fn default_init_expectations() -> std::vec::Vec<I2cTransaction> {
+    let config = Lsm9ds0Config::default();
+    let mut expectations = vec![
+        // verify_device_ids: read WHO_AM_I_G (single byte, no auto-increment)
+        I2cTransaction::write_read(
+            GYRO_ADDR,
+            vec![GyroRegisters::WHO_AM_I_G.addr()],
+            vec![registers::device_constants::gyro::DEVICE_ID],
+        ),
+        // verify_device_ids: read WHO_AM_I_XM (single byte, no auto-increment)
+        I2cTransaction::write_read(
+            XM_ADDR,
+            vec![AccelMagRegisters::WHO_AM_I_XM.addr()],
+            vec![registers::device_constants::xm::DEVICE_ID],
+        ),
+    ];
+    expectations.extend(write_config_expectations(&config));
+    expectations
 }
 
 /// Mock delay that does nothing (for testing init without real hardware)
@@ -1022,4 +1030,139 @@ async fn test_i2c_write_exceeds_max_length_panics_in_debug() {
 
     // This should panic in debug builds
     let _ = interface.write_gyro(test_addr, &test_data).await;
+}
+
+// =========================================================================
+// REAPPLY_CONFIG TEST
+// =========================================================================
+
+#[tokio::test]
+async fn test_reapply_config() {
+    // Use a non-default config so the expected register bytes are meaningfully non-zero.
+    // If reapply_config() uses stale or default values, the mock will fail.
+    let config = Lsm9ds0Config::new()
+        .with_gyro_scale(GyroScale::Dps2000)
+        .with_accel_scale(AccelScale::G8)
+        .with_mag_scale(MagScale::Gauss8);
+    let expectations = write_config_expectations(&config);
+
+    let i2c = I2cMock::new(&expectations);
+    let interface = I2cInterface::init(i2c);
+    let mut driver = Lsm9ds0::new_with_config(interface, config);
+
+    driver.reapply_config().await.unwrap();
+
+    // Shadow config must be unchanged after a pure re-apply — sensitivities reflect the
+    // scales we set, not the defaults, proving the stored config was used for the writes.
+    assert_eq!(driver.config().gyro_sensitivity(), GyroScale::Dps2000.sensitivity());
+    assert_eq!(driver.config().accel_sensitivity(), AccelScale::G8.sensitivity());
+    assert_eq!(driver.config().mag_sensitivity(), MagScale::Gauss8.sensitivity());
+
+    driver.release().release().done();
+}
+
+// =========================================================================
+// SOFTWARE_RESET TEST
+// =========================================================================
+
+#[tokio::test]
+async fn test_software_reset() {
+    // software_reset() writes boot bits to both chips, delays, then re-verifies device IDs.
+    // Default shadow registers are 0x00; boot is bit 7, so the written values are 0x80.
+    let boot_val_g: u8 = CtrlReg5G::new().with_boot(Enable::Enabled).into();
+    let boot_val_xm: u8 = CtrlReg0Xm::new().with_boot(Enable::Enabled).into();
+
+    let expectations = vec![
+        // Write boot bit to CTRL_REG5_G (single byte)
+        I2cTransaction::write(
+            GYRO_ADDR,
+            vec![GyroRegisters::CTRL_REG5_G.addr(), boot_val_g],
+        ),
+        // Write boot bit to CTRL_REG0_XM (single byte)
+        I2cTransaction::write(
+            XM_ADDR,
+            vec![AccelMagRegisters::CTRL_REG0_XM.addr(), boot_val_xm],
+        ),
+        // After delay, verify_device_ids() re-reads WHO_AM_I registers
+        I2cTransaction::write_read(
+            GYRO_ADDR,
+            vec![GyroRegisters::WHO_AM_I_G.addr()],
+            vec![registers::device_constants::gyro::DEVICE_ID],
+        ),
+        I2cTransaction::write_read(
+            XM_ADDR,
+            vec![AccelMagRegisters::WHO_AM_I_XM.addr()],
+            vec![registers::device_constants::xm::DEVICE_ID],
+        ),
+    ];
+
+    let i2c = I2cMock::new(&expectations);
+    let interface = I2cInterface::init(i2c);
+    let mut driver = Lsm9ds0::new(interface);
+
+    driver.software_reset(&mut MockDelay).await.unwrap();
+
+    // After reset the driver calls `self.config = Lsm9ds0Config::default()`, so the boot
+    // bits we set before the reset must be cleared in the shadow registers.
+    assert_eq!(driver.config.ctrl_reg5_g.boot(), Enable::Disabled);
+    assert_eq!(driver.config.ctrl_reg0_xm.boot(), Enable::Disabled);
+    // Confirm the rest of the config reverted to defaults as well.
+    assert_eq!(driver.config().gyro_sensitivity(), GyroScale::Dps245.sensitivity());
+
+    driver.release().release().done();
+}
+
+// =========================================================================
+// SET_GYRO_POWER_MODE TESTS
+// =========================================================================
+
+#[tokio::test]
+async fn test_set_gyro_power_mode() {
+    // CtrlReg1G layout (LSB→MSB): xen[0] yen[1] zen[2] pd[3] bw[5:4] dr[7:6]
+    // Default: all zeros (power-down, no axes)
+    // Sleep: pd=Normal(1), axes all disabled  → bit3=1 → 0x08
+    // PowerDown: pd=PowerDown(0), axes unchanged → 0x00
+    let sleep_val: u8 = CtrlReg1G::new()
+        .with_pd(PowerMode::Normal)
+        .with_xen(Enable::Disabled)
+        .with_yen(Enable::Disabled)
+        .with_zen(Enable::Disabled)
+        .into();
+    let power_down_val: u8 = CtrlReg1G::new().with_pd(PowerMode::PowerDown).into();
+
+    let expectations = vec![
+        // set_gyro_power_mode(Sleep) → write CTRL_REG1_G
+        I2cTransaction::write(
+            GYRO_ADDR,
+            vec![GyroRegisters::CTRL_REG1_G.addr(), sleep_val],
+        ),
+        // set_gyro_power_mode(PowerDown) → write CTRL_REG1_G
+        I2cTransaction::write(
+            GYRO_ADDR,
+            vec![GyroRegisters::CTRL_REG1_G.addr(), power_down_val],
+        ),
+    ];
+
+    let i2c = I2cMock::new(&expectations);
+    let interface = I2cInterface::init(i2c);
+    let mut driver = Lsm9ds0::new(interface);
+
+    driver
+        .set_gyro_power_mode(GyroPowerMode::Sleep)
+        .await
+        .unwrap();
+    // Sleep: pd=Normal(1), all axes explicitly disabled
+    assert_eq!(driver.config.ctrl_reg1_g.pd(), PowerMode::Normal);
+    assert_eq!(driver.config.ctrl_reg1_g.xen(), Enable::Disabled);
+    assert_eq!(driver.config.ctrl_reg1_g.yen(), Enable::Disabled);
+    assert_eq!(driver.config.ctrl_reg1_g.zen(), Enable::Disabled);
+
+    driver
+        .set_gyro_power_mode(GyroPowerMode::PowerDown)
+        .await
+        .unwrap();
+    // PowerDown: pd=PowerDown(0)
+    assert_eq!(driver.config.ctrl_reg1_g.pd(), PowerMode::PowerDown);
+
+    driver.release().release().done();
 }

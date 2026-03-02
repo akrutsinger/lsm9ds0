@@ -754,7 +754,7 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "lsm9ds0"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bitfield-struct",
  "defmt",
@@ -1061,7 +1061,7 @@ dependencies = [
 
 [[package]]
 name = "rp2040"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",

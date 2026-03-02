@@ -1,11 +1,11 @@
 [package]
 name = "lsm9ds0"
-version = "0.2.0"
 description = "Platform-agnostic async driver for the LSM9DS0 IMU"
 readme = "README.md"
 homepage = "https://github.com/akrutsinger/lsm9ds0"
 repository = "https://github.com/akrutsinger/lsm9ds0/tree/main/lsm9ds0"
 documentation = "https://docs.rs/lsm9ds0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 

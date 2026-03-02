@@ -1428,6 +1428,7 @@ where
         y: bool,
         z: bool,
     ) -> Result<(), Error<I::BusError>> {
+        self.config.gyro_axes_enabled = (x, y, z);
         self.config.ctrl_reg1_g.set_xen(Enable::from(x));
         self.config.ctrl_reg1_g.set_yen(Enable::from(y));
         self.config.ctrl_reg1_g.set_zen(Enable::from(z));

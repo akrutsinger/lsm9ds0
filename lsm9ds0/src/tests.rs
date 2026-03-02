@@ -1166,3 +1166,71 @@ async fn test_set_gyro_power_mode() {
 
     driver.release().release().done();
 }
+
+// =========================================================================
+// SET_GYRO_AXES REGRESSION TEST
+//
+// Regression: set_gyro_axes() must persist the axis selection into
+// `gyro_axes_enabled` so that a subsequent set_gyro_power_mode(Normal)
+// restores the correct axes and not the default (true, true, true).
+// =========================================================================
+
+#[tokio::test]
+async fn test_set_gyro_axes_persists_for_power_mode_restore() {
+    // Layout: xen[0] yen[1] zen[2] pd[3] bw[5:4] dr[7:6]
+    // set_gyro_axes(false, false, true)  → zen=1             → 0x04
+    // set_gyro_power_mode(Sleep)         → pd=1, axes all off → 0x08
+    // set_gyro_power_mode(Normal)        → pd=1, restore (false,false,true) → 0x0C
+    let axes_val: u8 = CtrlReg1G::new().with_zen(Enable::Enabled).into(); // 0x04
+    let sleep_val: u8 = CtrlReg1G::new()
+        .with_pd(PowerMode::Normal)
+        .with_xen(Enable::Disabled)
+        .with_yen(Enable::Disabled)
+        .with_zen(Enable::Disabled)
+        .into(); // 0x08
+    let normal_val: u8 = CtrlReg1G::new()
+        .with_pd(PowerMode::Normal)
+        .with_xen(Enable::Disabled)
+        .with_yen(Enable::Disabled)
+        .with_zen(Enable::Enabled)
+        .into(); // 0x0C
+
+    let expectations = vec![
+        I2cTransaction::write(
+            GYRO_ADDR,
+            vec![GyroRegisters::CTRL_REG1_G.addr(), axes_val],
+        ),
+        I2cTransaction::write(
+            GYRO_ADDR,
+            vec![GyroRegisters::CTRL_REG1_G.addr(), sleep_val],
+        ),
+        I2cTransaction::write(
+            GYRO_ADDR,
+            vec![GyroRegisters::CTRL_REG1_G.addr(), normal_val],
+        ),
+    ];
+
+    let i2c = I2cMock::new(&expectations);
+    let interface = I2cInterface::init(i2c);
+    let mut driver = Lsm9ds0::new(interface);
+
+    driver.set_gyro_axes(false, false, true).await.unwrap();
+    driver
+        .set_gyro_power_mode(GyroPowerMode::Sleep)
+        .await
+        .unwrap();
+    driver
+        .set_gyro_power_mode(GyroPowerMode::Normal)
+        .await
+        .unwrap();
+
+    // The axis selection made before sleep must survive the sleep/wake cycle.
+    // Without the gyro_axes_enabled fix, Normal would restore (true, true, true)
+    // and xen/yen would be Enabled here — causing the mock and these assertions to fail.
+    assert_eq!(driver.config.ctrl_reg1_g.xen(), Enable::Disabled);
+    assert_eq!(driver.config.ctrl_reg1_g.yen(), Enable::Disabled);
+    assert_eq!(driver.config.ctrl_reg1_g.zen(), Enable::Enabled);
+    assert_eq!(driver.config.gyro_axes_enabled, (false, false, true));
+
+    driver.release().release().done();
+}
